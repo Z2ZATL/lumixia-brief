@@ -23,26 +23,27 @@ export function Landing() {
               <Link className="button primary" to="/projects">
                 {t('signIn')} <span>→</span>
               </Link>
-              <span className="trust-line">Google + TOTP · Private workspace</span>
+              <span className="trust-line">{t('trustLine')}</span>
             </div>
           </div>
-          <div className="hero-product" aria-label="Product preview">
+          <div className="hero-product" aria-label={t('productPreview')}>
             <div className="preview-top">
               <span className="preview-dot" />
-              <span>Founder launch brief</span>
-              <b>Interview 4 / 12</b>
+              <span>{t('previewTitle')}</span>
+              <b>{t('previewInterview')}</b>
             </div>
             <div className="preview-question">
-              <small>NEXT CLARIFICATION · SUCCESS CRITERIA</small>
-              <h2>What observable result would prove this launch is working?</h2>
+              <small>{t('previewClarification')}</small>
+              <h2>{t('previewQuestion')}</h2>
               <div className="preview-input">
-                We’ll know it works when…<button>Continue →</button>
+                {t('previewInput')}
+                <button>{t('continueShort')} →</button>
               </div>
             </div>
             <div className="preview-confidence">
               <div>
                 <strong>68%</strong>
-                <span>Alignment confidence</span>
+                <span>{t('confidence')}</span>
               </div>
               <div className="mini-dimensions">
                 <i className="full" />
@@ -74,7 +75,7 @@ export function Landing() {
         <section className="privacy-band">
           <div className="privacy-icon">⌁</div>
           <div>
-            <span className="eyebrow">SECURITY IS PRODUCT BEHAVIOR</span>
+            <span className="eyebrow">{t('securityBehavior')}</span>
             <h2>{t('privacy')}</h2>
             <p>{t('privacyBody')}</p>
           </div>
@@ -82,7 +83,7 @@ export function Landing() {
       </main>
       <footer>
         <Logo />
-        <span>Built with Codex + GPT-5.6 for OpenAI Build Week</span>
+        <span>{t('builtWith')}</span>
       </footer>
     </div>
   );

@@ -18,8 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.16.0
           cache: npm
@@ -27,18 +27,22 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run knip
       - run: npm run test:coverage
+      - run: npm run test:ui
       - run: npm run build
+      - run: npm run bundle:check
       - run: npm run audit:prod
       - run: npm run evidence
       - name: Upload quality evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: quality-evidence-${{ github.sha }}
           path: |
             coverage/
             artifacts/evidence-summary.json
+            artifacts/bundle-summary.json
           if-no-files-found: error
           retention-days: 30
 
@@ -47,23 +51,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.16.0
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Start pinned local Supabase
-        run: npx supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor
+        run: npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor
       - run: npx supabase db reset
       - name: Test empty-database migration and owner/MFA policies
         run: npm run test:integration
-        env:
-          RUN_SUPABASE_INTEGRATION: 'true'
       - name: Capture Supabase status
         if: always()
         run: npx supabase status --output json > supabase-status.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: rls-evidence-${{ github.sha }}
@@ -75,15 +77,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24.16.0
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - name: Run E2E and browser-console audit
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: playwright-evidence-${{ github.sha }}
@@ -101,10 +104,10 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Build Linux/amd64 portability image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           platforms: linux/amd64
@@ -113,7 +116,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Scan image for critical vulnerabilities
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: lumixia-brief:${{ github.sha }}
           format: sarif
@@ -121,17 +124,17 @@ jobs:
           severity: CRITICAL
           ignore-unfixed: true
           exit-code: '1'
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@1ad29ea4a422cce9a242a9fae469541dcd08addc # v4
         if: always()
         with:
           sarif_file: trivy-results.sarif
       - name: Generate CycloneDX SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           image: lumixia-brief:${{ github.sha }}
           format: cyclonedx-json
           output-file: sbom.cdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: container-security-${{ github.sha }}
@@ -145,10 +148,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -159,6 +162,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Require every gate
-        env:
-          RESULTS: ${{ join(needs.*.result, ',') }}
-        run: test "$RESULTS" = "success,success,success,success,success"
+        run: |
+          test "${{ needs.quality.result }}" = "success"
+          test "${{ needs.rls-integration.result }}" = "success"
+          test "${{ needs.e2e.result }}" = "success"
+          test "${{ needs.container.result }}" = "success"
+          test "${{ needs.secret-scan.result }}" = "success"

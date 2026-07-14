@@ -34,7 +34,7 @@ export function requestContext(config: AppConfig) {
       const event = {
         level: 'info',
         requestId: req.requestId,
-        route: req.route?.path ?? req.path,
+        route: sanitizedRoute(req),
         method: req.method,
         status: res.statusCode,
         durationMs: Math.round(performance.now() - startedAt),
@@ -47,6 +47,12 @@ export function requestContext(config: AppConfig) {
     });
     next();
   };
+}
+
+const identifierPattern = /\/[0-9a-f]{8}-[0-9a-f-]{27,}\b/gi;
+
+function sanitizedRoute(req: Request): string {
+  return (req.baseUrl + req.path).replace(identifierPattern, '/:id');
 }
 
 export function exactOrigin(config: AppConfig) {
@@ -79,9 +85,10 @@ export function requireMfa(config: AppConfig) {
         const aal = req.header('x-test-aal') ?? 'aal2';
         if (aal !== 'aal2')
           throw new HttpError(403, 'MFA_REQUIRED', 'A second factor is required.');
+        const authorization = req.header('authorization');
         req.authContext = {
           userId,
-          supabaseToken: req.header('authorization')?.replace(/^Bearer /, ''),
+          ...(authorization ? { supabaseToken: authorization.replace(/^Bearer /, '') } : {}),
           aal: 'aal2',
         };
         return next();
@@ -104,26 +111,86 @@ export function requireMfa(config: AppConfig) {
 }
 
 export function hasMfaClaim(claims: Record<string, unknown>): boolean {
-  if (claims.aal === 'aal2') return true;
-  if (Array.isArray(claims.fva) && claims.fva.length > 1) {
-    const secondFactorAge = Number(claims.fva[1]);
+  if (claims['aal'] === 'aal2') return true;
+  if (Array.isArray(claims['fva']) && claims['fva'].length > 1) {
+    const secondFactorAge = Number(claims['fva'][1]);
     if (Number.isFinite(secondFactorAge) && secondFactorAge >= 0) return true;
-  }
-  if (Array.isArray(claims.amr)) {
-    return claims.amr.some((method) => ['mfa', 'totp', 'otp'].includes(String(method)));
   }
   return false;
 }
 
-export function perUserRateLimit(points = 90, duration = 60) {
+export function perUserRateLimit(config: AppConfig, points = 90, duration = 60) {
   const limiter = new RateLimiterMemory({ points, duration });
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
-      await limiter.consume(req.authContext?.userId ?? req.ip ?? 'anonymous');
-      next();
-    } catch {
-      next(new HttpError(429, 'RATE_LIMITED', 'Too many requests. Please try again shortly.'));
+      const userId = req.authContext?.userId;
+      if (!userId) throw new HttpError(401, 'AUTH_REQUIRED', 'Authentication required.');
+      if (config.DATA_MODE === 'supabase' && config.NODE_ENV !== 'test') {
+        const allowed = await consumeDistributedLimit(config, req, userId, points, duration);
+        if (!allowed)
+          throw new HttpError(429, 'RATE_LIMITED', 'Too many requests. Try again shortly.');
+      } else {
+        await limiter.consume(userId);
+      }
+      return next();
+    } catch (error) {
+      if (error instanceof HttpError) return next(error);
+      if (config.DATA_MODE === 'supabase' && config.NODE_ENV !== 'test') {
+        return next(
+          new HttpError(503, 'RATE_LIMIT_UNAVAILABLE', 'Request safety service unavailable.'),
+        );
+      }
+      return next(
+        new HttpError(429, 'RATE_LIMITED', 'Too many requests. Please try again shortly.'),
+      );
     }
+  };
+}
+
+async function consumeDistributedLimit(
+  config: AppConfig,
+  req: Request,
+  userId: string,
+  points: number,
+  duration: number,
+): Promise<boolean> {
+  const token = req.authContext?.supabaseToken;
+  if (!config.SUPABASE_URL || !config.SUPABASE_PUBLISHABLE_KEY || !token) {
+    throw new Error('RATE_LIMIT_CONFIGURATION_UNAVAILABLE');
+  }
+  const bucket = `${req.method}:${sanitizedRoute(req)}:${points}:${duration}`;
+  const response = await fetch(`${config.SUPABASE_URL}/rest/v1/rpc/consume_rate_limit`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(2500),
+    headers: {
+      apikey: config.SUPABASE_PUBLISHABLE_KEY,
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      p_owner_id: userId,
+      p_bucket: bucket,
+      p_points: points,
+      p_duration_seconds: duration,
+    }),
+  });
+  if (!response.ok) throw new Error('RATE_LIMIT_BACKEND_FAILED');
+  return (await response.json()) === true;
+}
+
+export function requestDeadline(milliseconds = 65_000) {
+  return (_req: Request, res: Response, next: NextFunction) => {
+    const timer = setTimeout(() => {
+      if (!res.headersSent) {
+        res.status(504).json({
+          error: { code: 'REQUEST_TIMEOUT', message: 'The request exceeded its safe deadline.' },
+        });
+      }
+    }, milliseconds);
+    timer.unref();
+    res.once('finish', () => clearTimeout(timer));
+    res.once('close', () => clearTimeout(timer));
+    next();
   };
 }
 

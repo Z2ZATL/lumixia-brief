@@ -1,6 +1,14 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { projectSchema, type Project } from '../../shared/contracts.js';
-import type { NotionConnection, NotionSyncRecord, ProjectStore } from './types.js';
+import {
+  ProjectVersionConflictError,
+  type InterviewTurnClaim,
+  type InterviewTurnStatus,
+  type NotionConnection,
+  type NotionSyncClaim,
+  type NotionSyncRecord,
+  type ProjectStore,
+} from './types.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -21,22 +29,26 @@ export class SupabaseProjectStore implements ProjectStore {
   async listProjects(ownerId: string, token?: string): Promise<Project[]> {
     const { data, error } = await this.client(token)
       .from('projects')
-      .select('document')
+      .select('document,revision')
       .eq('owner_id', ownerId)
       .order('updated_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []).map((row) => projectSchema.parse(row.document));
+    return (data ?? []).map((row) =>
+      projectSchema.parse({ ...(row.document as JsonRecord), revision: row.revision }),
+    );
   }
 
   async getProject(ownerId: string, projectId: string, token?: string): Promise<Project | null> {
     const { data, error } = await this.client(token)
       .from('projects')
-      .select('document')
+      .select('document,revision')
       .eq('owner_id', ownerId)
       .eq('id', projectId)
       .maybeSingle();
     if (error) throw error;
-    return data ? projectSchema.parse(data.document) : null;
+    return data
+      ? projectSchema.parse({ ...(data.document as JsonRecord), revision: data.revision })
+      : null;
   }
 
   async createProject(project: Project, token?: string): Promise<Project> {
@@ -46,16 +58,22 @@ export class SupabaseProjectStore implements ProjectStore {
   }
 
   async saveProject(project: Project, token?: string): Promise<Project> {
-    const { data, error } = await this.client(token)
-      .from('projects')
-      .update(this.projectRow(project))
-      .eq('id', project.id)
-      .eq('owner_id', project.ownerId)
-      .select('id')
-      .maybeSingle();
+    const expectedRevision = project.revision;
+    const next = { ...project, revision: expectedRevision + 1 };
+    const { data, error } = await this.client(token).rpc('compare_and_save_project', {
+      p_owner_id: project.ownerId,
+      p_project_id: project.id,
+      p_expected_revision: expectedRevision,
+      p_document: next,
+      p_title: next.title,
+      p_workflow_status: next.workflowStatus,
+      p_sync_status: next.syncStatus,
+      p_updated_at: next.updatedAt,
+    });
     if (error) throw error;
-    if (!data) throw new Error('PROJECT_NOT_FOUND');
-    return project;
+    if (data !== 1) throw new ProjectVersionConflictError();
+    project.revision = next.revision;
+    return next;
   }
 
   async deleteProject(ownerId: string, projectId: string, token?: string): Promise<boolean> {
@@ -69,20 +87,51 @@ export class SupabaseProjectStore implements ProjectStore {
     return Boolean(data?.length);
   }
 
-  async claimAnswer(
+  async claimInterviewTurn(
     ownerId: string,
     projectId: string,
     clientAnswerId: string,
+    payload: Record<string, unknown>,
+    retryFailed: boolean,
     token?: string,
-  ): Promise<boolean> {
-    const { error } = await this.client(token).from('answer_claims').insert({
-      owner_id: ownerId,
-      project_id: projectId,
-      client_answer_id: clientAnswerId,
+  ): Promise<InterviewTurnClaim> {
+    const { data, error } = await this.client(token).rpc('claim_interview_turn', {
+      p_owner_id: ownerId,
+      p_project_id: projectId,
+      p_client_answer_id: clientAnswerId,
+      p_payload: payload,
+      p_retry_failed: retryFailed,
     });
-    if (!error) return true;
-    if (error.code === '23505') return false;
-    throw error;
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error('TURN_CLAIM_FAILED');
+    return {
+      state: row.claim_state,
+      status: row.turn_status,
+      result: row.turn_result ? projectSchema.parse(row.turn_result) : null,
+      errorCode: row.turn_error_code,
+    };
+  }
+
+  async completeInterviewTurn(
+    ownerId: string,
+    projectId: string,
+    clientAnswerId: string,
+    status: Exclude<InterviewTurnStatus, 'pending'>,
+    result: Project,
+    errorCode: string | null,
+    token?: string,
+  ): Promise<void> {
+    const { data, error } = await this.client(token).rpc('complete_interview_turn', {
+      p_owner_id: ownerId,
+      p_project_id: projectId,
+      p_client_answer_id: clientAnswerId,
+      p_status: status,
+      p_result: result,
+      p_error_code: errorCode,
+    });
+    if (error) throw error;
+    if (!data) throw new Error('TURN_NOT_CLAIMED');
   }
 
   async getNotionConnection(ownerId: string, token?: string): Promise<NotionConnection | null> {
@@ -128,53 +177,57 @@ export class SupabaseProjectStore implements ProjectStore {
     if (error) throw error;
   }
 
-  async getNotionSync(
-    ownerId: string,
-    projectId: string,
-    briefVersion: number,
-    token?: string,
-  ): Promise<NotionSyncRecord | null> {
-    const { data, error } = await this.client(token)
-      .from('notion_syncs')
-      .select('*')
-      .eq('owner_id', ownerId)
-      .eq('project_id', projectId)
-      .eq('brief_version', briefVersion)
-      .maybeSingle();
+  async claimNotionSync(record: NotionSyncRecord, token?: string): Promise<NotionSyncClaim> {
+    const { data, error } = await this.client(token).rpc('claim_notion_sync', {
+      p_owner_id: record.ownerId,
+      p_project_id: record.projectId,
+      p_brief_version: record.briefVersion,
+      p_operation_id: record.operationId,
+      p_content_hash: record.contentHash,
+      p_known_page_id: record.notionPageId,
+      p_lease_expires_at: record.leaseExpiresAt,
+    });
     if (error) throw error;
-    return data
-      ? {
-          ownerId: data.owner_id,
-          projectId: data.project_id,
-          briefVersion: data.brief_version,
-          notionPageId: data.notion_page_id,
-          status: data.status,
-          errorCode: data.error_code,
-          updatedAt: data.updated_at,
-        }
-      : null;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error('NOTION_CLAIM_FAILED');
+    const recordRow = row as unknown as Record<string, unknown>;
+    const state = recordRow['claim_state'];
+    if (!['claimed', 'syncing', 'synced', 'conflict'].includes(String(state))) {
+      throw new Error('NOTION_CLAIM_INVALID');
+    }
+    return {
+      state: state as NotionSyncClaim['state'],
+      record: this.notionSyncRecord(recordRow),
+    };
   }
 
-  async saveNotionSync(record: NotionSyncRecord, token?: string): Promise<void> {
-    const { error } = await this.client(token).from('notion_syncs').upsert(
-      {
-        owner_id: record.ownerId,
-        project_id: record.projectId,
-        brief_version: record.briefVersion,
-        notion_page_id: record.notionPageId,
-        status: record.status,
-        error_code: record.errorCode,
-        updated_at: record.updatedAt,
-      },
-      { onConflict: 'project_id,brief_version' },
-    );
+  async completeNotionSync(record: NotionSyncRecord, token?: string): Promise<void> {
+    const { data, error } = await this.client(token).rpc('complete_notion_sync', {
+      p_owner_id: record.ownerId,
+      p_project_id: record.projectId,
+      p_brief_version: record.briefVersion,
+      p_operation_id: record.operationId,
+      p_notion_page_id: record.notionPageId,
+      p_status: record.status,
+      p_error_code: record.errorCode,
+    });
     if (error) throw error;
+    if (!data) throw new Error('NOTION_OPERATION_NOT_CLAIMED');
   }
 
-  async ping(token?: string): Promise<boolean> {
-    if (!token) return false;
-    const { error } = await this.client(token).rpc('readiness_probe');
-    return !error;
+  private notionSyncRecord(row: Record<string, unknown>): NotionSyncRecord {
+    return {
+      ownerId: String(row['owner_id']),
+      projectId: String(row['project_id']),
+      briefVersion: Number(row['brief_version']),
+      notionPageId: typeof row['notion_page_id'] === 'string' ? row['notion_page_id'] : null,
+      status: row['sync_status'] as NotionSyncRecord['status'],
+      errorCode: typeof row['error_code'] === 'string' ? row['error_code'] : null,
+      operationId: String(row['operation_id']),
+      leaseExpiresAt: typeof row['lease_expires_at'] === 'string' ? row['lease_expires_at'] : null,
+      contentHash: String(row['content_hash']),
+      updatedAt: String(row['updated_at']),
+    };
   }
 
   private projectRow(project: Project): JsonRecord {
@@ -184,6 +237,7 @@ export class SupabaseProjectStore implements ProjectStore {
       title: project.title,
       workflow_status: project.workflowStatus,
       sync_status: project.syncStatus,
+      revision: project.revision,
       document: project,
       created_at: project.createdAt,
       updated_at: project.updatedAt,

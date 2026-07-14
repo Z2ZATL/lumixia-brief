@@ -3,8 +3,9 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useI18n } from '../i18n';
 
 export function Logo() {
+  const { t } = useI18n();
   return (
-    <Link to="/" className="logo" aria-label="Lumixia Brief home">
+    <Link to="/" className="logo" aria-label={t('home')}>
       <span className="logo-mark">L</span>
       <span>
         Lumixia <em>Brief</em>
@@ -14,12 +15,12 @@ export function Logo() {
 }
 
 export function LocaleSwitch() {
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   return (
     <button
       className="locale-switch"
       onClick={() => setLocale(locale === 'en' ? 'th' : 'en')}
-      aria-label="Switch language"
+      aria-label={t('switchLanguage')}
     >
       {locale === 'en' ? 'TH' : 'EN'}
     </button>
@@ -38,7 +39,7 @@ export function AppLayout({ localMode }: { localMode: boolean }) {
         </nav>
         <div className="header-actions">
           <LocaleSwitch />
-          {localMode ? <span className="demo-pill">Local demo</span> : <UserButton />}
+          {localMode ? <span className="demo-pill">{t('localDemo')}</span> : <UserButton />}
         </div>
       </header>
       <Outlet />

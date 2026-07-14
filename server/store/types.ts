@@ -1,5 +1,12 @@
 import type { Project } from '../../shared/contracts.js';
 
+export class ProjectVersionConflictError extends Error {
+  constructor() {
+    super('PROJECT_VERSION_CONFLICT');
+    this.name = 'ProjectVersionConflictError';
+  }
+}
+
 export interface NotionConnection {
   ownerId: string;
   accessTokenEncrypted: string;
@@ -19,7 +26,24 @@ export interface NotionSyncRecord {
   notionPageId: string | null;
   status: 'syncing' | 'synced' | 'error';
   errorCode: string | null;
+  operationId: string;
+  leaseExpiresAt: string | null;
+  contentHash: string;
   updatedAt: string;
+}
+
+export interface NotionSyncClaim {
+  state: 'claimed' | 'syncing' | 'synced' | 'conflict';
+  record: NotionSyncRecord;
+}
+
+export type InterviewTurnStatus = 'pending' | 'processed' | 'failed';
+
+export interface InterviewTurnClaim {
+  state: 'claimed' | 'duplicate' | 'busy' | 'conflict';
+  status: InterviewTurnStatus;
+  result: Project | null;
+  errorCode: string | null;
 }
 
 export interface ProjectStore {
@@ -28,21 +52,26 @@ export interface ProjectStore {
   createProject(project: Project, token?: string): Promise<Project>;
   saveProject(project: Project, token?: string): Promise<Project>;
   deleteProject(ownerId: string, projectId: string, token?: string): Promise<boolean>;
-  claimAnswer(
+  claimInterviewTurn(
     ownerId: string,
     projectId: string,
     clientAnswerId: string,
+    payload: Record<string, unknown>,
+    retryFailed: boolean,
     token?: string,
-  ): Promise<boolean>;
+  ): Promise<InterviewTurnClaim>;
+  completeInterviewTurn(
+    ownerId: string,
+    projectId: string,
+    clientAnswerId: string,
+    status: Exclude<InterviewTurnStatus, 'pending'>,
+    result: Project,
+    errorCode: string | null,
+    token?: string,
+  ): Promise<void>;
   getNotionConnection(ownerId: string, token?: string): Promise<NotionConnection | null>;
   saveNotionConnection(connection: NotionConnection, token?: string): Promise<void>;
   deleteNotionConnection(ownerId: string, token?: string): Promise<void>;
-  getNotionSync(
-    ownerId: string,
-    projectId: string,
-    briefVersion: number,
-    token?: string,
-  ): Promise<NotionSyncRecord | null>;
-  saveNotionSync(record: NotionSyncRecord, token?: string): Promise<void>;
-  ping(token?: string): Promise<boolean>;
+  claimNotionSync(record: NotionSyncRecord, token?: string): Promise<NotionSyncClaim>;
+  completeNotionSync(record: NotionSyncRecord, token?: string): Promise<void>;
 }

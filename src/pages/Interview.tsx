@@ -1,9 +1,33 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { Project } from '../../shared/contracts';
+import type { DimensionKey, Project } from '../../shared/contracts';
 import { ConfidencePanel } from '../components/ConfidencePanel';
-import { useI18n } from '../i18n';
+import { useI18n, type MessageKey } from '../i18n';
 import { ApiError, projectApi } from '../lib/api';
+
+interface PendingAnswer {
+  clientAnswerId: string;
+  question: string;
+  dimension: DimensionKey;
+  answer: string;
+}
+
+const answerStatusKeys: Record<Project['answers'][number]['status'], MessageKey> = {
+  pending: 'answerStatusPending',
+  processed: 'answerStatusProcessed',
+  failed: 'answerStatusFailed',
+};
+
+const dimensionLabelKeys: Record<DimensionKey, MessageKey> = {
+  problem: 'dimensionProblem',
+  audience: 'dimensionAudience',
+  outcome: 'dimensionOutcome',
+  scope: 'dimensionScope',
+  constraints: 'dimensionConstraints',
+  timeline: 'dimensionTimeline',
+  risks: 'dimensionRisks',
+  successCriteria: 'dimensionSuccess',
+};
 
 export function Interview() {
   const { id = '' } = useParams();
@@ -13,12 +37,21 @@ export function Interview() {
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const pendingAnswer = useRef<PendingAnswer | null>(null);
 
   useEffect(() => {
+    let active = true;
     projectApi
       .get(id)
-      .then(({ project }) => setProject(project))
-      .catch((error: Error) => setError(error.message));
+      .then(({ project }) => {
+        if (active) setProject(project);
+      })
+      .catch((error: Error) => {
+        if (active) setError(error.message);
+      });
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   async function submit(event: FormEvent) {
@@ -26,14 +59,19 @@ export function Interview() {
     if (!project?.currentQuestion || !answer.trim() || busy) return;
     setBusy(true);
     setError('');
-    try {
-      const result = await projectApi.submitAnswer(project.id, {
+    const submission =
+      pendingAnswer.current ??
+      ({
         clientAnswerId: crypto.randomUUID(),
         question: project.currentQuestion.text,
         dimension: project.currentQuestion.dimension,
         answer,
-      });
+      } satisfies PendingAnswer);
+    pendingAnswer.current = submission;
+    try {
+      const result = await projectApi.submitAnswer(project.id, submission);
       setProject(result.project);
+      pendingAnswer.current = null;
       setAnswer('');
     } catch (error) {
       setError(
@@ -41,9 +79,26 @@ export function Interview() {
           ? `${error.message} ${t('retry')}`
           : error instanceof Error
             ? error.message
-            : 'Request failed.',
+            : t('requestFailed'),
       );
-      projectApi.get(project.id).then(({ project }) => setProject(project));
+      try {
+        const { project: recovered } = await projectApi.get(project.id);
+        setProject(recovered);
+        const persisted = recovered.answers.find(
+          (item) => item.clientAnswerId === submission.clientAnswerId,
+        );
+        if (persisted?.status === 'processed') {
+          pendingAnswer.current = null;
+          setAnswer('');
+        } else if (error instanceof ApiError && error.status < 500 && error.status !== 409) {
+          pendingAnswer.current = null;
+        }
+      } catch (recoveryError) {
+        setError(
+          (current) =>
+            `${current} ${recoveryError instanceof Error ? recoveryError.message : t('recoveryFailed')}`,
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -56,8 +111,12 @@ export function Interview() {
     try {
       const { project: next } = await projectApi.retryAnswer(project.id, clientAnswerId);
       setProject(next);
+      if (pendingAnswer.current?.clientAnswerId === clientAnswerId) {
+        pendingAnswer.current = null;
+        setAnswer('');
+      }
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Retry failed.');
+      setError(error instanceof Error ? error.message : t('retryFailed'));
     } finally {
       setBusy(false);
     }
@@ -69,9 +128,9 @@ export function Interview() {
     setError('');
     try {
       await projectApi.generateBrief(project.id);
-      navigate(`/projects/${project.id}/brief`);
+      void navigate(`/projects/${project.id}/brief`);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not generate brief.');
+      setError(error instanceof Error ? error.message : t('generateFailed'));
       setBusy(false);
     }
   }
@@ -104,10 +163,13 @@ export function Interview() {
           {project.currentQuestion ? (
             <form onSubmit={submit} className="question-form">
               <span className="question-dimension">
-                NEXT CLARIFICATION · {project.currentQuestion.dimension.replace(/([A-Z])/g, ' $1')}
+                {t('nextClarification')} ·{' '}
+                {t(dimensionLabelKeys[project.currentQuestion.dimension])}
               </span>
               <h2>{project.currentQuestion.text}</h2>
-              <p className="rationale">Why this matters: {project.currentQuestion.rationale}</p>
+              <p className="rationale">
+                {t('whyMatters')}: {project.currentQuestion.rationale}
+              </p>
               <label>
                 <span>{t('answer')}</span>
                 <textarea
@@ -116,7 +178,7 @@ export function Interview() {
                   rows={7}
                   disabled={busy}
                   maxLength={10000}
-                  placeholder="Be specific, or say what is still undecided…"
+                  placeholder={t('answerPlaceholder')}
                 />
               </label>
               <div className="answer-actions">
@@ -131,13 +193,13 @@ export function Interview() {
               <span>✓</span>
               <h2>
                 {project.analysis.stopReason === 'max_questions'
-                  ? 'Question limit reached'
-                  : 'Enough context to draft'}
+                  ? t('questionLimit')
+                  : t('enoughContext')}
               </h2>
               <p>
                 {project.analysis.stopReason === 'max_questions'
-                  ? 'The brief will clearly mark what still needs clarification.'
-                  : 'The core dimensions are supported and no blocking contradiction remains.'}
+                  ? t('questionLimitBody')
+                  : t('enoughContextBody')}
               </p>
               <button className="button primary" onClick={generate} disabled={busy}>
                 {t('generate')} →
@@ -152,14 +214,14 @@ export function Interview() {
               onClick={() => retry(item.clientAnswerId)}
               disabled={busy}
             >
-              <span>Answer saved safely</span>
+              <span>{t('answerSaved')}</span>
               <b>{t('retry')} →</b>
             </button>
           ))}
           {canGenerate && project.currentQuestion && (
             <div className="ready-strip">
               <span>
-                <b>Brief threshold reached.</b> You can draft now or answer one more question.
+                <b>{t('briefThreshold')}</b> {t('thresholdBody')}
               </span>
               <button className="button small" onClick={generate} disabled={busy}>
                 {t('generate')}
@@ -168,14 +230,18 @@ export function Interview() {
           )}
           {project.answers.length > 0 && (
             <details className="answer-history">
-              <summary>Interview history · {project.answers.length}</summary>
+              <summary>
+                {t('interviewHistory')} · {project.answers.length}
+              </summary>
               {project.answers.map((item, index) => (
                 <article key={item.id}>
                   <b>
                     {index + 1}. {item.question}
                   </b>
                   <p>{item.text}</p>
-                  <span className={`answer-status ${item.status}`}>{item.status}</span>
+                  <span className={`answer-status ${item.status}`}>
+                    {t(answerStatusKeys[item.status])}
+                  </span>
                 </article>
               ))}
             </details>
@@ -190,9 +256,7 @@ export function Interview() {
             {project.analysis.facts.slice(-3).map((fact, index) => (
               <p key={index}>“{fact.statement}”</p>
             ))}
-            {project.analysis.facts.length === 0 && (
-              <p className="muted">Evidence will appear as you answer.</p>
-            )}
+            {project.analysis.facts.length === 0 && <p className="muted">{t('evidenceEmpty')}</p>}
           </section>
           <section className="evidence-card assumptions">
             <h3>
@@ -202,7 +266,21 @@ export function Interview() {
               <p key={index}>{item.statement}</p>
             ))}
             {project.analysis.assumptions.length === 0 && (
-              <p className="muted">No unsupported assumptions surfaced yet.</p>
+              <p className="muted">{t('assumptionsEmpty')}</p>
+            )}
+          </section>
+          <section className="evidence-card contradictions">
+            <h3>
+              {t('contradictions')} <span>{project.analysis.contradictions.length}</span>
+            </h3>
+            {project.analysis.contradictions.slice(-3).map((item) => (
+              <p key={item.id}>
+                {item.statementA} ↔ {item.statementB}
+                {item.resolved ? ' ✓' : item.blocking ? ` · ${t('blocking')}` : ''}
+              </p>
+            ))}
+            {project.analysis.contradictions.length === 0 && (
+              <p className="muted">{t('contradictionsEmpty')}</p>
             )}
           </section>
         </aside>

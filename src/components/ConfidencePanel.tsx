@@ -1,6 +1,18 @@
-import { dimensionLabels, type Project } from '../../shared/contracts';
-import { confidenceScore } from '../../server/domain/confidence';
-import { useI18n } from '../i18n';
+import { confidenceScore } from '../../shared/confidence';
+import type { Project } from '../../shared/contracts';
+import type { DimensionKey } from '../../shared/contracts';
+import { useI18n, type MessageKey } from '../i18n';
+
+const dimensionLabelKeys: Record<DimensionKey, MessageKey> = {
+  problem: 'dimensionProblem',
+  audience: 'dimensionAudience',
+  outcome: 'dimensionOutcome',
+  scope: 'dimensionScope',
+  constraints: 'dimensionConstraints',
+  timeline: 'dimensionTimeline',
+  risks: 'dimensionRisks',
+  successCriteria: 'dimensionSuccess',
+};
 
 export function ConfidencePanel({
   project,
@@ -27,27 +39,27 @@ export function ConfidencePanel({
       </div>
       {!compact && (
         <div className="dimension-list">
-          {project.analysis.dimensionAssessments.map((item) => (
-            <div className="dimension-row" key={item.dimension}>
-              <span>{dimensionLabels[item.dimension]}</span>
-              <div
-                className="level-track"
-                aria-label={`${dimensionLabels[item.dimension]}: ${item.level}`}
-              >
-                {[0, 1, 2, 3].map((level) => (
-                  <i
-                    key={level}
-                    className={
-                      level <= { missing: 0, assumed: 1, partial: 2, clear: 3 }[item.level]
-                        ? 'filled'
-                        : ''
-                    }
-                  />
-                ))}
+          {project.analysis.dimensionAssessments.map((item) => {
+            const label = t(dimensionLabelKeys[item.dimension]);
+            return (
+              <div className="dimension-row" key={item.dimension}>
+                <span>{label}</span>
+                <div className="level-track" aria-label={`${label}: ${t(item.level)}`}>
+                  {[0, 1, 2, 3].map((level) => (
+                    <i
+                      key={level}
+                      className={
+                        level <= { missing: 0, assumed: 1, partial: 2, clear: 3 }[item.level]
+                          ? 'filled'
+                          : ''
+                      }
+                    />
+                  ))}
+                </div>
+                <small className={`level ${item.level}`}>{t(item.level)}</small>
               </div>
-              <small className={`level ${item.level}`}>{t(item.level)}</small>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>

@@ -94,7 +94,7 @@ export class OpenAIModelProvider implements ModelProvider {
   }
 }
 
-export class ModelContractError extends Error {
+class ModelContractError extends Error {
   constructor(code: string) {
     super(code);
     this.name = 'ModelContractError';
@@ -115,7 +115,7 @@ export class MockModelProvider implements ModelProvider {
       if (!evidence.length) return assessment;
       return {
         dimension: assessment.dimension,
-        level: evidence.length > 1 || evidence[0].text.length >= 40 ? 'clear' : 'partial',
+        level: evidence.length > 1 || (evidence[0]?.text.length ?? 0) >= 40 ? 'clear' : 'partial',
         rationale: `The interview includes direct evidence for ${assessment.dimension}.`,
         evidence: evidence.slice(-3).map((answer) => ({
           answerId: answer.id,

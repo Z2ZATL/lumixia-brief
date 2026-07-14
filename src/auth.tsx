@@ -14,7 +14,7 @@ function ClerkBoundary({ children }: { children: ReactNode }) {
   if (!isLoaded)
     return (
       <div className="center-stage">
-        <div className="spinner" aria-label="Loading" />
+        <div className="spinner" aria-label={t('loading')} />
       </div>
     );
   if (!isSignedIn)
@@ -27,7 +27,7 @@ function ClerkBoundary({ children }: { children: ReactNode }) {
     return (
       <main className="security-setup">
         <section className="security-copy">
-          <span className="eyebrow">AAL2 required</span>
+          <span className="eyebrow">{t('aal2Required')}</span>
           <h1>{t('secureSetup')}</h1>
           <p>{t('secureBody')}</p>
         </section>

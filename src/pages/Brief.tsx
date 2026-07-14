@@ -1,32 +1,103 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { dimensionKeys, type BriefSections, type Project } from '../../shared/contracts';
-import { useI18n } from '../i18n';
+import type { BriefSections, Project } from '../../shared/contracts';
+import { dimensionKeys } from '../../shared/domain';
+import { useI18n, type MessageKey } from '../i18n';
 import { api, projectApi } from '../lib/api';
 
-const sectionMeta: Array<{ key: keyof BriefSections; label: string; mode: 'text' | 'list' }> = [
-  { key: 'summary', label: 'Summary', mode: 'text' },
-  { key: 'problemStatement', label: 'Problem statement', mode: 'text' },
-  { key: 'goals', label: 'Goals', mode: 'list' },
-  { key: 'successCriteria', label: 'Success criteria', mode: 'list' },
-  { key: 'audience', label: 'Audience', mode: 'list' },
-  { key: 'deliverables', label: 'Deliverables', mode: 'list' },
-  { key: 'mustHave', label: 'Must-have', mode: 'list' },
-  { key: 'niceToHave', label: 'Nice-to-have', mode: 'list' },
-  { key: 'nonGoals', label: 'Non-goals', mode: 'list' },
-  { key: 'constraints', label: 'Constraints', mode: 'list' },
-  { key: 'timeline', label: 'Timeline', mode: 'list' },
-  { key: 'risks', label: 'Risks', mode: 'list' },
-  { key: 'assumptions', label: 'Assumptions', mode: 'list' },
-  { key: 'openQuestions', label: 'Open questions', mode: 'list' },
-  { key: 'decisionsRequiringApproval', label: 'Decisions requiring approval', mode: 'list' },
-  { key: 'nextSteps', label: 'Next steps', mode: 'list' },
+const sectionMeta: Array<{
+  key: keyof BriefSections;
+  labelKey: MessageKey;
+  mode: 'text' | 'list';
+}> = [
+  { key: 'summary', labelKey: 'sectionSummary', mode: 'text' },
+  { key: 'problemStatement', labelKey: 'sectionProblem', mode: 'text' },
+  { key: 'goals', labelKey: 'sectionGoals', mode: 'list' },
+  { key: 'successCriteria', labelKey: 'sectionSuccess', mode: 'list' },
+  { key: 'audience', labelKey: 'sectionAudience', mode: 'list' },
+  { key: 'deliverables', labelKey: 'sectionDeliverables', mode: 'list' },
+  { key: 'mustHave', labelKey: 'sectionMustHave', mode: 'list' },
+  { key: 'niceToHave', labelKey: 'sectionNiceToHave', mode: 'list' },
+  { key: 'nonGoals', labelKey: 'sectionNonGoals', mode: 'list' },
+  { key: 'constraints', labelKey: 'sectionConstraints', mode: 'list' },
+  { key: 'timeline', labelKey: 'sectionTimeline', mode: 'list' },
+  { key: 'risks', labelKey: 'sectionRisks', mode: 'list' },
+  { key: 'assumptions', labelKey: 'sectionAssumptions', mode: 'list' },
+  { key: 'openQuestions', labelKey: 'sectionOpenQuestions', mode: 'list' },
+  { key: 'decisionsRequiringApproval', labelKey: 'sectionDecisions', mode: 'list' },
+  { key: 'nextSteps', labelKey: 'sectionNextSteps', mode: 'list' },
 ];
+
+const dimensionLabelKeys: Record<(typeof dimensionKeys)[number], MessageKey> = {
+  problem: 'dimensionProblem',
+  audience: 'dimensionAudience',
+  outcome: 'dimensionOutcome',
+  scope: 'dimensionScope',
+  constraints: 'dimensionConstraints',
+  timeline: 'dimensionTimeline',
+  risks: 'dimensionRisks',
+  successCriteria: 'dimensionSuccess',
+};
+
+interface BriefActionsProps {
+  approved: boolean;
+  busy: boolean;
+  nextVersion: number;
+  approveLabel: string;
+  rejectLabel: string;
+  reviewLabel: string;
+  onApprove: () => Promise<void>;
+  onReject: () => void;
+  onCreateRevision: () => Promise<void>;
+}
+
+function BriefActions(props: BriefActionsProps) {
+  if (props.approved) {
+    return (
+      <button className="button ghost" onClick={props.onCreateRevision} disabled={props.busy}>
+        {props.reviewLabel} v{props.nextVersion}
+      </button>
+    );
+  }
+  return (
+    <>
+      <button className="button ghost danger" onClick={props.onReject}>
+        {props.rejectLabel}
+      </button>
+      <button className="button primary" onClick={props.onApprove} disabled={props.busy}>
+        {props.approveLabel}
+      </button>
+    </>
+  );
+}
+
+function SaveBar({
+  dirty,
+  busy,
+  label,
+  statusLabel,
+  onSave,
+}: {
+  dirty: boolean;
+  busy: boolean;
+  label: string;
+  statusLabel: string;
+  onSave: () => Promise<void>;
+}) {
+  return (
+    <div className="sticky-save">
+      <span>{statusLabel}</span>
+      <button className="button primary" onClick={onSave} disabled={!dirty || busy}>
+        {label}
+      </button>
+    </div>
+  );
+}
 
 export function Brief() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [project, setProject] = useState<Project | null>(null);
   const [title, setTitle] = useState('');
   const [sections, setSections] = useState<BriefSections | null>(null);
@@ -36,23 +107,51 @@ export function Brief() {
   const [rejecting, setRejecting] = useState(false);
   const [parentId, setParentId] = useState('');
   const [notionPages, setNotionPages] = useState<Array<{ id: string; title: string }>>([]);
+  const [notionConnected, setNotionConnected] = useState(false);
 
   useEffect(() => {
-    projectApi
-      .get(id)
-      .then(({ project }) => {
+    let active = true;
+    async function load() {
+      try {
+        const { project } = await projectApi.get(id);
+        if (!active) return;
         const brief = project.briefVersions.at(-1);
-        if (!brief) return navigate(`/projects/${id}/interview`, { replace: true });
+        if (!brief) {
+          void navigate(`/projects/${id}/interview`, { replace: true });
+          return;
+        }
         setProject(project);
         setTitle(brief.title);
         setSections(structuredClone(brief.sections));
         setParentId(project.notionParentId ?? '');
-        api<{ pages: Array<{ id: string; title: string }> }>('/notion/pages')
-          .then(({ pages }) => setNotionPages(pages))
-          .catch(() => undefined);
-      })
-      .catch((error: Error) => setError(error.message));
+        const status = await api<{ connected: boolean }>('/notion/status');
+        if (!active) return;
+        setNotionConnected(status.connected);
+        if (status.connected) {
+          const { pages } = await api<{ pages: Array<{ id: string; title: string }> }>(
+            '/notion/pages',
+            {},
+          );
+          if (active) setNotionPages(pages);
+        }
+      } catch (error) {
+        if (active && error instanceof Error) setError(error.message);
+      }
+    }
+    void load();
+    return () => {
+      active = false;
+    };
   }, [id, navigate]);
+
+  useEffect(() => {
+    if (!rejecting) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setRejecting(false);
+    }
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [rejecting]);
 
   const latest = project?.briefVersions.at(-1);
   const dirty = useMemo(
@@ -93,23 +192,31 @@ export function Brief() {
       setProject(result.project);
       setSaved(true);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Save failed.');
+      setError(error instanceof Error ? error.message : t('saveFailed'));
     } finally {
       setBusy(false);
     }
   }
 
   async function approve() {
-    if (!project) return;
+    if (!project || !latest || !sections) return;
     setBusy(true);
     setError('');
     try {
-      if (dirty) await save();
+      if (dirty) {
+        const savedDraft = await projectApi.editBrief(project.id, {
+          expectedVersion: latest.version,
+          title,
+          sections,
+        });
+        setProject(savedDraft.project);
+        setSaved(true);
+      }
       const result = await projectApi.approveBrief(project.id);
       setProject(result.project);
       setSaved(true);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Approval failed.');
+      setError(error instanceof Error ? error.message : t('approvalFailed'));
     } finally {
       setBusy(false);
     }
@@ -128,7 +235,7 @@ export function Brief() {
       setProject(result.project);
       setSaved(true);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not create revision.');
+      setError(error instanceof Error ? error.message : t('revisionFailed'));
     } finally {
       setBusy(false);
     }
@@ -146,9 +253,9 @@ export function Brief() {
         dimension: data.get('dimension'),
         reason: data.get('reason'),
       });
-      navigate(`/projects/${project.id}/interview`);
+      void navigate(`/projects/${project.id}/interview`);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not request changes.');
+      setError(error instanceof Error ? error.message : t('changesFailed'));
       setBusy(false);
     }
   }
@@ -161,7 +268,7 @@ export function Brief() {
       const result = await projectApi.selectNotionParent(project.id, parentId.trim());
       setProject(result.project);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not set parent page.');
+      setError(error instanceof Error ? error.message : t('parentFailed'));
     } finally {
       setBusy(false);
     }
@@ -175,7 +282,7 @@ export function Brief() {
       const result = await projectApi.syncNotion(project.id);
       setProject(result.project);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Sync failed.');
+      setError(error instanceof Error ? error.message : t('syncFailed'));
     } finally {
       setBusy(false);
     }
@@ -194,51 +301,52 @@ export function Brief() {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               disabled={approved}
-              aria-label="Brief title"
+              aria-label={t('briefTitle')}
             />
             <span className={`status ${project.workflowStatus}`}>
-              {approved ? 'Approved' : 'Needs review'}
+              {approved ? t('statusApproved') : t('statusNeedsReview')}
             </span>
             {latest.clarificationLabel === 'needs_clarification' && (
-              <span className="clarification-label">Needs clarification</span>
+              <span className="clarification-label">{t('needsClarification')}</span>
             )}
           </div>
           <p>
-            Version {latest.version} · Generated from {project.answers.length} interview answers
+            {t('version')} {latest.version} · {t('generatedFrom')} {project.answers.length}{' '}
+            {t('interviewAnswers')}
           </p>
         </div>
         <div className="brief-actions">
-          {!approved && (
-            <>
-              <button className="button ghost danger" onClick={() => setRejecting(true)}>
-                {t('reject')}
-              </button>
-              <button className="button primary" onClick={approve} disabled={busy}>
-                {t('approve')}
-              </button>
-            </>
-          )}
-          {approved && (
-            <button className="button ghost" onClick={createRevision} disabled={busy}>
-              {t('review')} v{latest.version + 1}
-            </button>
-          )}
+          <BriefActions
+            approved={approved}
+            busy={busy}
+            nextVersion={latest.version + 1}
+            approveLabel={t('approve')}
+            rejectLabel={t('reject')}
+            reviewLabel={t('review')}
+            onApprove={approve}
+            onReject={() => setRejecting(true)}
+            onCreateRevision={createRevision}
+          />
         </div>
       </header>
-      {error && <div className="alert error brief-alert">{error}</div>}
+      {error && (
+        <div className="alert error brief-alert" role="alert">
+          {error}
+        </div>
+      )}
       <div className="brief-layout">
         <article className="brief-document">
           <div className="document-kicker">
-            <span>LUMIXIA / STRUCTURED BRIEF</span>
+            <span>{t('structuredBrief')}</span>
             <span>v{latest.version}</span>
           </div>
-          {sectionMeta.map(({ key, label, mode }, index) => {
+          {sectionMeta.map(({ key, labelKey, mode }, index) => {
             const value = sections[key];
             return (
               <section className="brief-section" key={key}>
                 <div className="section-number">{String(index + 1).padStart(2, '0')}</div>
                 <div>
-                  <label htmlFor={`section-${key}`}>{label}</label>
+                  <label htmlFor={`section-${key}`}>{t(labelKey)}</label>
                   <textarea
                     id={`section-${key}`}
                     rows={
@@ -248,22 +356,21 @@ export function Brief() {
                     onChange={(event) => updateSection(key, event.target.value, mode)}
                     disabled={approved}
                   />
-                  <small>
-                    {mode === 'list' ? 'One item per line' : 'Short, decision-ready prose'}
-                  </small>
+                  <small>{mode === 'list' ? t('oneItemPerLine') : t('decisionReadyProse')}</small>
                 </div>
               </section>
             );
           })}
           {!approved && (
-            <div className="sticky-save">
-              <span>
-                {dirty ? 'Unsaved edits' : saved ? 'All changes saved' : 'Structured draft'}
-              </span>
-              <button className="button primary" onClick={save} disabled={!dirty || busy}>
-                {t('save')}
-              </button>
-            </div>
+            <SaveBar
+              dirty={dirty}
+              busy={busy}
+              label={t('save')}
+              statusLabel={
+                dirty ? t('unsavedEdits') : saved ? t('allChangesSaved') : t('structuredDraft')
+              }
+              onSave={save}
+            />
           )}
         </article>
         <aside className="brief-sidebar">
@@ -271,7 +378,7 @@ export function Brief() {
             <span className="micro-label">{t('alignment')}</span>
             <div className="delta">
               <strong>+{latest.alignment.delta}</strong>
-              <small>points</small>
+              <small>{t('points')}</small>
             </div>
             <div className="score-compare">
               <div>
@@ -286,10 +393,10 @@ export function Brief() {
             </div>
             <ul>
               <li>
-                <b>{latest.alignment.assumptionsSurfaced}</b> assumptions surfaced
+                <b>{latest.alignment.assumptionsSurfaced}</b> {t('assumptionsSurfacedLabel')}
               </li>
               <li>
-                <b>{latest.alignment.contradictionsResolved}</b> contradictions resolved
+                <b>{latest.alignment.contradictionsResolved}</b> {t('contradictionsResolvedLabel')}
               </li>
               <li>
                 <b>{latest.alignment.humanDecisionsRemaining}</b> {t('decisions')}
@@ -297,16 +404,17 @@ export function Brief() {
             </ul>
           </section>
           <section className="sync-card">
-            <span className="micro-label">NOTION HANDOFF</span>
-            <h3>{approved ? 'Approved and ready to sync' : 'Approval required'}</h3>
-            <p>Only an immutable approved snapshot can leave Lumixia.</p>
-            {approved && (
+            <span className="micro-label">{t('notionHandoff')}</span>
+            <h3>{approved ? t('approvedReady') : t('approvalRequired')}</h3>
+            <p>{t('snapshotOnly')}</p>
+            {approved && !notionConnected && <Link to="/settings">{t('connectNotion')} →</Link>}
+            {approved && notionConnected && (
               <>
                 <label>
                   {t('notionParent')}
                   {notionPages.length ? (
                     <select value={parentId} onChange={(event) => setParentId(event.target.value)}>
-                      <option value="">Select a page…</option>
+                      <option value="">{t('selectPage')}</option>
                       {notionPages.map((page) => (
                         <option value={page.id} key={page.id}>
                           {page.title}
@@ -317,7 +425,7 @@ export function Brief() {
                     <input
                       value={parentId}
                       onChange={(event) => setParentId(event.target.value)}
-                      placeholder="Paste a shared page ID"
+                      placeholder={t('pastePageId')}
                     />
                   )}
                 </label>
@@ -334,15 +442,15 @@ export function Brief() {
                   disabled={busy || !project.notionParentId}
                 >
                   {project.syncStatus === 'synced'
-                    ? '✓ Synced'
+                    ? t('synced')
                     : project.syncStatus === 'syncing'
-                      ? 'Syncing…'
+                      ? t('syncing')
                       : t('sync')}
                 </button>
                 {project.syncStatus === 'error' && (
-                  <small className="error-text">Safe to retry; no new page will be created.</small>
+                  <small className="error-text">{t('safeRetry')}</small>
                 )}
-                <Link to="/settings">Manage Notion connection →</Link>
+                <Link to="/settings">{t('manageNotion')} →</Link>
               </>
             )}
           </section>
@@ -351,8 +459,10 @@ export function Brief() {
             {[...project.briefVersions].reverse().map((version) => (
               <div key={version.id}>
                 <span>v{version.version}</span>
-                <b>{version.status}</b>
-                <small>{new Date(version.updatedAt).toLocaleString()}</small>
+                <b>
+                  {version.status === 'approved' ? t('statusApproved') : t('statusNeedsReview')}
+                </b>
+                <small>{new Date(version.updatedAt).toLocaleString(locale)}</small>
               </div>
             ))}
           </section>
@@ -361,36 +471,40 @@ export function Brief() {
       {rejecting && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <form className="reject-modal" onSubmit={requestChanges}>
-            <button type="button" className="modal-close" onClick={() => setRejecting(false)}>
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setRejecting(false)}
+              aria-label={t('closeRevision')}
+              autoFocus
+            >
               ×
             </button>
-            <span className="eyebrow">FOCUSED REVISION</span>
+            <span className="eyebrow">{t('focusedRevision')}</span>
             <h2>{t('reject')}</h2>
-            <p>
-              Identify exactly what is wrong. Lumixia will reopen the interview only for that gap.
-            </p>
+            <p>{t('revisionBody')}</p>
             <label>
-              Brief section
+              {t('briefSection')}
               <select name="section" required>
                 {sectionMeta.map((item) => (
-                  <option key={item.key} value={item.label}>
-                    {item.label}
+                  <option key={item.key} value={item.key}>
+                    {t(item.labelKey)}
                   </option>
                 ))}
               </select>
             </label>
             <label>
-              Alignment dimension
+              {t('alignmentDimension')}
               <select name="dimension" required>
                 {dimensionKeys.map((item) => (
                   <option key={item} value={item}>
-                    {item}
+                    {t(dimensionLabelKeys[item])}
                   </option>
                 ))}
               </select>
             </label>
             <label>
-              Why does this need to change?
+              {t('whyChange')}
               <textarea name="reason" minLength={5} maxLength={1500} required rows={4} />
             </label>
             <div className="form-actions">
@@ -398,7 +512,7 @@ export function Brief() {
                 {t('cancel')}
               </button>
               <button className="button primary" disabled={busy}>
-                Ask one focused question →
+                {t('askFocused')} →
               </button>
             </div>
           </form>
