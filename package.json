@@ -16,6 +16,7 @@
     "bundle:check": "node scripts/check-bundle.mjs",
     "preview": "vite preview",
     "start": "tsx --env-file-if-exists=.env.local server/dev.ts",
+    "start:test:api": "tsx server/dev.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
