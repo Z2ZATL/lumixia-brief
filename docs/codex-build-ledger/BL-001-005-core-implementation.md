@@ -3,6 +3,7 @@
 - Date: 2026-07-14 (Asia/Bangkok)
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Status: implemented locally; external credentials and production handoffs pending
+- Core implementation commit: `794bec991672c200dc69278fff6b38e8944b89a9`
 
 ## Sanitized owner instruction
 
