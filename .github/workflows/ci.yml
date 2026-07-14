@@ -28,6 +28,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run knip
+      - run: npm run css:check
       - run: npm run test:coverage
       - run: npm run test:ui
       - run: npm run build
