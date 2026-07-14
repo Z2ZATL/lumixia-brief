@@ -13,6 +13,7 @@ Core `/feedback` Session ID: `019f614d-cd80-76d3-8151-b8271f575a3f`
 | BL-005 | DevOps, evidence, and submission docs       | same                                   | Docker, GitHub Actions, SBOM/Trivy/gitleaks, release gate, runbook, ADRs, demo script                           | Format/lint/typecheck/test/build/audit gates                       | `794bec9`                                                                                                                                                            |
 | BL-006 | Private repository publication              | same                                   | Private GitHub repository, protected-main baseline, first hosted CI run                                         | Remote SHA/privacy/default-branch verification                     | `e0932d4` / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29354711340)                                                                                   |
 | BL-007 | Quality and defect hardening                | same                                   | Atomic retries, optimistic concurrency, complete Notion sync, privacy hardening, dead-code and strict gates     | Unit/API/UI/RLS/E2E, build, audit, Docker and Trivy                | `01eb777`, `ae5dc7f`, `32e4587` / [PR #11](https://github.com/Z2ZATL/lumixia-brief/pull/11) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29361906100) |
+| BL-008 | Behavior-preserving modular refactor        | same                                   | Bounded routes/services/features, client and CSS boundaries, complexity and function-length gates               | Unit/API/UI/RLS/E2E, coverage, build, audit, Docker and Trivy      | `7645829` / [PR #12](https://github.com/Z2ZATL/lumixia-brief/pull/12) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29364799154)                       |
 | BL-009 | Open-source publication and release handoff | same                                   | Apache-2.0 licensing, pre-publication secret scan, public repository, ordered PR release, live-provider handoff | Full-history Gitleaks, final CI, visibility and merge verification | pending                                                                                                                                                              |
 
 Detailed entry: [BL-001–005 core implementation](docs/codex-build-ledger/BL-001-005-core-implementation.md)
@@ -20,6 +21,8 @@ Detailed entry: [BL-001–005 core implementation](docs/codex-build-ledger/BL-00
 Publication entry: [BL-006 private repository publication](docs/codex-build-ledger/BL-006-private-repository-publication.md)
 
 Hardening entry: [BL-007 quality and defect hardening](docs/codex-build-ledger/BL-007-quality-and-defect-hardening.md)
+
+Refactor entry: [BL-008 behavior-preserving modular refactor](docs/codex-build-ledger/BL-008-modular-refactor.md)
 
 Open-source entry: [BL-009 open-source publication and release handoff](docs/codex-build-ledger/BL-009-open-source-publication.md)
 

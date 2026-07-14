@@ -38,7 +38,19 @@ export default tseslint.config(
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/no-namespace': 'off',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      complexity: ['error', 25],
+      complexity: ['error', 15],
+    },
+  },
+  {
+    files: [
+      'api/**/*.ts',
+      'server/**/*.ts',
+      'shared/**/*.ts',
+      'scripts/**/*.ts',
+      'src/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
     },
   },
   {

@@ -2,7 +2,7 @@
 FROM --platform=$BUILDPLATFORM node:24.16.0-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
 COPY . .
 RUN npm run typecheck && npm run test && npm run build
 
@@ -10,7 +10,8 @@ FROM --platform=$TARGETPLATFORM node:24.16.0-bookworm-slim AS runtime
 ENV NODE_ENV=production PORT=8787
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error \
+  && npm cache clean --force --loglevel=error
 COPY --from=build /app/server ./server
 COPY --from=build /app/shared ./shared
 COPY --from=build /app/api ./api
