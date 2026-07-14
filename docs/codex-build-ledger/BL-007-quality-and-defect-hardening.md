@@ -3,9 +3,9 @@
 - Date: 2026-07-15 (Asia/Bangkok)
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Branch: `agent/quality-and-defect-hardening`
-- Commit: pending publication
-- PR: pending publication
-- CI: pending publication
+- Commits: `01eb77782856f5a8e04a13863534de77e9b5c0f1`, `ae5dc7ff8bdd207311cef616d9426f49177b8818`, `32e4587af471f4ea8a2cf1ed536a886ca118f448`
+- PR: <https://github.com/Z2ZATL/lumixia-brief/pull/11>
+- CI: <https://github.com/Z2ZATL/lumixia-brief/actions/runs/29361906100> — Required CI passed
 
 ## Sanitized owner instruction
 
@@ -39,9 +39,9 @@ Remove actionable warnings, errors, dead code, security gaps, concurrency defect
 - Production dependency audit: 0 vulnerabilities.
 - Docker Linux/amd64 build: passed; runtime dependencies audited clean inside the image.
 - Trivy critical image scan: 0 findings.
+- Hosted GitHub Required CI passed quality, Supabase/RLS, Playwright, Linux/amd64 image/SBOM/Trivy, and secret-scan jobs with evidence artifacts.
 
 ## Handoffs or blockers
 
-- Record the commit, PR, hosted CI URL, and CI result after publication.
 - Development-only Vercel CLI advisories remain documented in `docs/security/development-advisories.md`; no production dependency finding remains.
 - Judge repository invitations remain pending explicit owner confirmation at the time permissions are changed.
