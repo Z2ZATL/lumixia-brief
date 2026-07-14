@@ -36,7 +36,7 @@ jobs:
       - run: npm run evidence
       - name: Upload quality evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: quality-evidence-${{ github.sha }}
           path: |
@@ -65,7 +65,7 @@ jobs:
       - name: Capture Supabase status
         if: always()
         run: npx supabase status --output json > supabase-status.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: rls-evidence-${{ github.sha }}
@@ -86,7 +86,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Run E2E and browser-console audit
         run: npm run test:e2e
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: playwright-evidence-${{ github.sha }}
@@ -100,9 +100,6 @@ jobs:
     name: Linux amd64 container and SBOM
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -124,17 +121,17 @@ jobs:
           severity: CRITICAL
           ignore-unfixed: true
           exit-code: '1'
-      - uses: github/codeql-action/upload-sarif@1ad29ea4a422cce9a242a9fae469541dcd08addc # v4
-        if: always()
-        with:
-          sarif_file: trivy-results.sarif
+          scanners: vuln
+          hide-progress: true
+          limit-severities-for-sarif: true
+          version: v0.72.0
       - name: Generate CycloneDX SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           image: lumixia-brief:${{ github.sha }}
           format: cyclonedx-json
           output-file: sbom.cdx.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: container-security-${{ github.sha }}
@@ -151,9 +148,19 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan repository history for secrets
+        run: |
+          mkdir -p artifacts
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.3 \
+            detect --source=/repo --redact --no-banner \
+            --report-format=json --report-path=/repo/artifacts/gitleaks.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: secret-scan-${{ github.sha }}
+          path: artifacts/gitleaks.json
+          if-no-files-found: error
+          retention-days: 30
 
   ci-success:
     name: Required CI
