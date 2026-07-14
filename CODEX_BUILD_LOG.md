@@ -11,8 +11,11 @@ Core `/feedback` Session ID: `019f614d-cd80-76d3-8151-b8271f575a3f`
 | BL-003 | Security, persistence, and integrations | same                                   | Clerk MFA gate, Supabase owner+AAL2 RLS, encrypted Notion OAuth, idempotent sync, sanitized observability | Security/API/RLS tests                                         | `794bec9`        |
 | BL-004 | Product UI and demo path                | same                                   | EN/TH landing, projects, interview, confidence, structured editor, reject/revise, approve, Notion handoff | Real browser walkthrough at desktop and 390px; Playwright spec | `794bec9`        |
 | BL-005 | DevOps, evidence, and submission docs   | same                                   | Docker, GitHub Actions, SBOM/Trivy/gitleaks, release gate, runbook, ADRs, demo script                     | Format/lint/typecheck/test/build/audit gates                   | `794bec9`        |
+| BL-006 | Private repository publication          | same                                   | Private GitHub repository, protected-main baseline, first hosted CI run                                  | Remote SHA/privacy/default-branch verification                 | `e0932d4` / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29354711340) |
 
 Detailed entry: [BL-001–005 core implementation](docs/codex-build-ledger/BL-001-005-core-implementation.md)
+
+Publication entry: [BL-006 private repository publication](docs/codex-build-ledger/BL-006-private-repository-publication.md)
 
 ## Required entry fields for future milestones
 
