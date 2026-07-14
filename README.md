@@ -156,7 +156,7 @@ npm run audit:prod
 docker build --platform linux/amd64 -t lumixia-brief:local .
 ```
 
-The Supabase integration suite runs only with `RUN_SUPABASE_INTEGRATION=true` and local Supabase active. Manual release checks include real Google/TOTP enrollment, Notion OAuth consent, production health, rollback rehearsal, keyboard navigation, WCAG AA contrast, and the sub-three-minute demo.
+The Supabase integration suite requires local Supabase to be active and never silently skips. Manual release checks include real Google/TOTP enrollment, Notion OAuth consent, production health, rollback rehearsal, keyboard navigation, WCAG AA contrast, and the sub-three-minute demo.
 
 CI stores coverage, Playwright evidence, Supabase status, Trivy SARIF, CycloneDX SBOM, and a sanitized per-commit summary for 30 days.
 

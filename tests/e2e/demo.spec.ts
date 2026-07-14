@@ -1,10 +1,38 @@
 import { expect, test } from '@playwright/test';
 
+const browserProblems = new WeakMap<object, string[]>();
+
+test.beforeEach(async ({ page }) => {
+  const problems: string[] = [];
+  browserProblems.set(page, problems);
+  page.on('console', (message) => {
+    if (message.type() === 'warning' || message.type() === 'error') {
+      problems.push(`console.${message.type()}: ${message.text()}`);
+    }
+  });
+  page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
+  page.on('requestfailed', (request) =>
+    problems.push(`requestfailed: ${request.method()} ${request.url()}`),
+  );
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      problems.push(`http ${response.status()}: ${response.request().method()} ${response.url()}`);
+    }
+  });
+});
+
+test.afterEach(async ({ page }) => {
+  expect(browserProblems.get(page) ?? []).toEqual([]);
+});
+
 test('founder turns a vague Codex idea into an approved brief', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('vague idea');
   await page.getByRole('link', { name: /Start a clear brief/ }).click();
-  await page.getByRole('button', { name: /New project/ }).click();
+  await page
+    .getByRole('button', { name: /New project/ })
+    .first()
+    .click();
   await page.getByLabel('Project name').fill('Founder preparing a brief for Codex');
   await page
     .getByLabel('Rough idea')
@@ -34,4 +62,11 @@ test('landing and app remain usable at 390px', async ({ page }) => {
   await expect(page.getByRole('link', { name: /Start a clear brief/ })).toBeVisible();
   await page.getByRole('link', { name: /Start a clear brief/ }).click();
   await expect(page.getByRole('button', { name: /New project/ })).toBeVisible();
+});
+
+test('Thai locale initializes the document language without a reload', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Switch language/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'th');
+  await expect(page.getByRole('link', { name: /เริ่มสร้างบรีฟที่ชัดเจน/ })).toBeVisible();
 });

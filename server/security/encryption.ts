@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 const VERSION = 'v1';
 
-export function parseEncryptionKey(encoded: string): Buffer {
+function parseEncryptionKey(encoded: string): Buffer {
   const key = Buffer.from(encoded, 'base64');
   if (key.length !== 32) throw new Error('TOKEN_ENCRYPTION_KEY must decode to exactly 32 bytes.');
   return key;

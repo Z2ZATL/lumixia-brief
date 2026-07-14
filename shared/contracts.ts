@@ -1,40 +1,19 @@
 import { z } from 'zod';
+import { dimensionKeys, dimensionLevels } from './domain.js';
+export { dimensionKeys, dimensionLabels } from './domain.js';
+export type { DimensionKey } from './domain.js';
 
-export const dimensionKeys = [
-  'problem',
-  'audience',
-  'outcome',
-  'scope',
-  'constraints',
-  'timeline',
-  'risks',
-  'successCriteria',
-] as const;
+const dimensionLevelSchema = z.enum(dimensionLevels);
+const dimensionKeySchema = z.enum(dimensionKeys);
 
-export const dimensionLabels: Record<DimensionKey, string> = {
-  problem: 'Problem',
-  audience: 'Audience',
-  outcome: 'Outcome',
-  scope: 'Scope',
-  constraints: 'Constraints',
-  timeline: 'Timeline',
-  risks: 'Risks',
-  successCriteria: 'Success criteria',
-};
-
-export const dimensionLevelSchema = z.enum(['missing', 'assumed', 'partial', 'clear']);
-export const dimensionKeySchema = z.enum(dimensionKeys);
-export type DimensionKey = z.infer<typeof dimensionKeySchema>;
-export type DimensionLevel = z.infer<typeof dimensionLevelSchema>;
-
-export const evidenceSchema = z
+const evidenceSchema = z
   .object({
     answerId: z.string().min(1),
     excerpt: z.string().min(1).max(240),
   })
   .strict();
 
-export const dimensionAssessmentSchema = z
+const dimensionAssessmentSchema = z
   .object({
     dimension: dimensionKeySchema,
     level: dimensionLevelSchema,
@@ -44,14 +23,14 @@ export const dimensionAssessmentSchema = z
   .strict();
 export type DimensionAssessment = z.infer<typeof dimensionAssessmentSchema>;
 
-export const factSchema = z
+const factSchema = z
   .object({
     statement: z.string().min(1).max(800),
     answerIds: z.array(z.string().min(1)).max(12),
   })
   .strict();
 
-export const assumptionSchema = z
+const assumptionSchema = z
   .object({
     statement: z.string().min(1).max(800),
     impact: z.enum(['low', 'medium', 'high']),
@@ -60,7 +39,7 @@ export const assumptionSchema = z
   })
   .strict();
 
-export const contradictionSchema = z
+const contradictionSchema = z
   .object({
     id: z.string().min(1).max(100),
     statementA: z.string().min(1).max(600),
@@ -72,7 +51,7 @@ export const contradictionSchema = z
   })
   .strict();
 
-export const nextQuestionSchema = z
+const nextQuestionSchema = z
   .object({
     text: z.string().min(1).max(800),
     dimension: dimensionKeySchema,
@@ -95,10 +74,10 @@ export const interviewAnalysisSchema = z
 
 export type InterviewAnalysis = z.infer<typeof interviewAnalysisSchema>;
 
-export const workflowStatusSchema = z.enum(['draft', 'interviewing', 'needs_review', 'approved']);
-export const syncStatusSchema = z.enum(['not_synced', 'syncing', 'synced', 'error']);
+const workflowStatusSchema = z.enum(['draft', 'interviewing', 'needs_review', 'approved']);
+const syncStatusSchema = z.enum(['not_synced', 'syncing', 'synced', 'error']);
 
-export const answerSchema = z
+const answerSchema = z
   .object({
     id: z.string(),
     clientAnswerId: z.string(),
@@ -111,9 +90,7 @@ export const answerSchema = z
     processedAt: z.string().nullable(),
   })
   .strict();
-export type InterviewAnswer = z.infer<typeof answerSchema>;
-
-export const briefSectionsSchema = z
+const briefSectionsSchema = z
   .object({
     summary: z.string().max(4000),
     problemStatement: z.string().max(4000),
@@ -143,7 +120,7 @@ export const generatedBriefSchema = z
   .strict();
 export type GeneratedBrief = z.infer<typeof generatedBriefSchema>;
 
-export const alignmentSchema = z
+const alignmentSchema = z
   .object({
     initialScore: z.number().min(0).max(100),
     finalScore: z.number().min(0).max(100),
@@ -175,6 +152,7 @@ export type BriefVersion = z.infer<typeof briefVersionSchema>;
 export const projectSchema = z
   .object({
     id: z.string(),
+    revision: z.number().int().positive(),
     ownerId: z.string(),
     title: z.string(),
     initialPrompt: z.string(),
@@ -194,14 +172,6 @@ export const projectSchema = z
   })
   .strict();
 export type Project = z.infer<typeof projectSchema>;
-
-export const apiErrorSchema = z.object({
-  error: z.object({
-    code: z.string(),
-    message: z.string(),
-    requestId: z.string().optional(),
-  }),
-});
 
 export const createProjectInputSchema = z
   .object({

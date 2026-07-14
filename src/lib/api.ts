@@ -1,4 +1,4 @@
-import type { Project } from '../../shared/contracts';
+import type { DimensionKey, Project } from '../../shared/contracts';
 
 export class ApiError extends Error {
   constructor(
@@ -10,7 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-const localAuth = !import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const localAuth = !import.meta.env['VITE_CLERK_PUBLISHABLE_KEY'];
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -37,8 +37,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const projectApi = {
-  list: () => api<{ projects: Project[] }>('/projects'),
-  get: (id: string) => api<{ project: Project }>(`/projects/${id}`),
+  list: (signal?: AbortSignal) =>
+    api<{ projects: Project[] }>('/projects', signal ? { signal } : {}),
+  get: (id: string, signal?: AbortSignal) =>
+    api<{ project: Project }>(`/projects/${id}`, signal ? { signal } : {}),
   create: (input: { title: string; initialPrompt: string; locale: 'en' | 'th' }) =>
     api<{ project: Project }>('/projects', { method: 'POST', body: JSON.stringify(input) }),
   remove: (id: string) => api<void>(`/projects/${id}`, { method: 'DELETE' }),
@@ -46,16 +48,27 @@ export const projectApi = {
     api<{ project: Project }>(`/projects/${id}/interview/start`, { method: 'POST' }),
   submitAnswer: (
     id: string,
-    input: { clientAnswerId: string; question: string; dimension: string; answer: string },
+    input: {
+      clientAnswerId: string;
+      question: string;
+      dimension: DimensionKey;
+      answer: string;
+    },
   ) =>
-    api<{ project: Project }>(`/projects/${id}/interview/answers`, {
+    api<{
+      project: Project;
+      status: 'processed' | 'pending' | 'failed';
+      idempotent: boolean;
+    }>(`/projects/${id}/interview/answers`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   retryAnswer: (id: string, clientAnswerId: string) =>
-    api<{ project: Project }>(`/projects/${id}/interview/answers/${clientAnswerId}/retry`, {
-      method: 'POST',
-    }),
+    api<{
+      project: Project;
+      status: 'processed' | 'pending' | 'failed';
+      idempotent: boolean;
+    }>(`/projects/${id}/interview/answers/${clientAnswerId}/retry`, { method: 'POST' }),
   generateBrief: (id: string) =>
     api<{ project: Project }>(`/projects/${id}/briefs/generate`, { method: 'POST' }),
   editBrief: (id: string, input: unknown) =>
@@ -76,5 +89,10 @@ export const projectApi = {
       body: JSON.stringify({ parentId }),
     }),
   syncNotion: (id: string) =>
-    api<{ project: Project; pageId: string }>(`/projects/${id}/notion/sync`, { method: 'POST' }),
+    api<{
+      project: Project;
+      pageId: string | null;
+      status: 'syncing' | 'synced';
+      idempotent: boolean;
+    }>(`/projects/${id}/notion/sync`, { method: 'POST' }),
 };

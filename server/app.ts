@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { clerkMiddleware } from '@clerk/express';
 import * as Sentry from '@sentry/node';
 import express, { type Request, type Response } from 'express';
@@ -15,6 +15,7 @@ import {
   type BriefVersion,
   type Project,
 } from '../shared/contracts.js';
+import { sanitizeTelemetryText } from '../shared/telemetry.js';
 import { type AppConfig, loadConfig } from './config.js';
 import {
   assessInitialPrompt,
@@ -35,6 +36,7 @@ import {
   HttpError,
   notFound,
   perUserRateLimit,
+  requestDeadline,
   requestContext,
   requireMfa,
 } from './http.js';
@@ -48,7 +50,7 @@ import {
 import { decryptSecret, encryptSecret } from './security/encryption.js';
 import { MemoryProjectStore } from './store/memory.js';
 import { SupabaseProjectStore } from './store/supabase.js';
-import type { ProjectStore } from './store/types.js';
+import { ProjectVersionConflictError, type ProjectStore } from './store/types.js';
 
 export interface AppDependencies {
   config: AppConfig;
@@ -89,12 +91,27 @@ export function createApp(dependencies = createDependencies()) {
       beforeSend(event) {
         delete event.request?.data;
         delete event.request?.cookies;
-        if (event.request?.headers) {
-          delete event.request.headers.authorization;
-          delete event.request.headers.cookie;
-        }
+        delete event.request?.headers;
+        delete event.request?.query_string;
+        if (event.request?.url) event.request.url = sanitizeTelemetryText(event.request.url);
+        if (event.transaction) event.transaction = sanitizeTelemetryText(event.transaction);
         delete event.user;
         return event;
+      },
+      beforeSendTransaction(event) {
+        delete event.request?.data;
+        delete event.request?.cookies;
+        delete event.request?.headers;
+        delete event.request?.query_string;
+        delete event.user;
+        if (event.request?.url) event.request.url = sanitizeTelemetryText(event.request.url);
+        if (event.transaction) event.transaction = sanitizeTelemetryText(event.transaction);
+        return event;
+      },
+      beforeBreadcrumb(breadcrumb) {
+        delete breadcrumb.data;
+        if (breadcrumb.message) breadcrumb.message = sanitizeTelemetryText(breadcrumb.message);
+        return breadcrumb;
       },
     });
   }
@@ -103,22 +120,51 @@ export function createApp(dependencies = createDependencies()) {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(requestContext(config));
+  app.use(requestDeadline());
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          baseUri: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          formAction: ["'self'", 'https://*.clerk.accounts.dev', 'https://*.clerk.com'],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://*.clerk.accounts.dev',
+            'https://*.clerk.com',
+          ],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https://img.clerk.com'],
+          fontSrc: ["'self'", 'data:'],
+          connectSrc: [
+            "'self'",
+            'https://*.clerk.accounts.dev',
+            'https://*.clerk.com',
+            'https://*.sentry.io',
+          ],
+          frameSrc: ['https://*.clerk.accounts.dev', 'https://*.clerk.com'],
+          workerSrc: ["'self'", 'blob:'],
+          upgradeInsecureRequests: config.NODE_ENV === 'production' ? [] : null,
+        },
+      },
       crossOriginResourcePolicy: { policy: 'same-site' },
     }),
   );
   app.use(exactOrigin(config));
   app.use(express.json({ limit: '32kb', strict: true }));
   if (!config.authBypass && config.NODE_ENV !== 'test') {
-    app.use(clerkMiddleware({ secretKey: config.CLERK_SECRET_KEY }));
+    app.use(
+      clerkMiddleware(config.CLERK_SECRET_KEY ? { secretKey: config.CLERK_SECRET_KEY } : undefined),
+    );
   }
 
   app.get('/api/health', (_req, res) => {
     res.json({
       ok: true,
-      version: process.env.npm_package_version ?? '0.1.0',
+      version: process.env['npm_package_version'] ?? '0.1.0',
       sha: config.deploymentSha,
     });
   });
@@ -139,7 +185,7 @@ export function createApp(dependencies = createDependencies()) {
   });
 
   const protectedApi = express.Router();
-  protectedApi.use(requireMfa(config), perUserRateLimit());
+  protectedApi.use(requireMfa(config), perUserRateLimit(config));
 
   protectedApi.get(
     '/projects',
@@ -156,6 +202,7 @@ export function createApp(dependencies = createDependencies()) {
       const now = new Date().toISOString();
       const project: Project = {
         id: randomUUID(),
+        revision: 1,
         ownerId: userId(req),
         title: input.title,
         initialPrompt: input.initialPrompt,
@@ -199,7 +246,7 @@ export function createApp(dependencies = createDependencies()) {
     asyncRoute(async (req, res) => {
       const deleted = await store.deleteProject(
         userId(req),
-        String(req.params.projectId),
+        String(req.params['projectId']),
         token(req),
       );
       if (!deleted) throw new HttpError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
@@ -220,7 +267,7 @@ export function createApp(dependencies = createDependencies()) {
 
   protectedApi.post(
     '/projects/:projectId/interview/answers',
-    perUserRateLimit(15, 60),
+    perUserRateLimit(config, 15, 60),
     validateBody(submitAnswerInputSchema),
     asyncRoute(async (req, res) => {
       const input = submitAnswerInputSchema.parse(req.body);
@@ -230,20 +277,40 @@ export function createApp(dependencies = createDependencies()) {
       if (project.workflowStatus === 'approved')
         throw new HttpError(409, 'APPROVED_IMMUTABLE', 'Request a revision first.');
 
-      const claimed = await store.claimAnswer(
+      const claim = await store.claimInterviewTurn(
         userId(req),
         project.id,
         input.clientAnswerId,
+        input,
+        false,
         token(req),
       );
-      if (!claimed) {
-        project = (await store.getProject(userId(req), project.id, token(req))) ?? project;
+      if (claim.state === 'busy') {
+        throw new HttpError(
+          409,
+          'PROJECT_BUSY',
+          'Another interview answer is still being processed.',
+        );
+      }
+      if (claim.state === 'conflict') {
+        throw new HttpError(
+          409,
+          'IDEMPOTENCY_CONFLICT',
+          'This answer ID was already used with different content.',
+        );
+      }
+      if (claim.state === 'duplicate') {
+        project =
+          claim.result ?? (await store.getProject(userId(req), project.id, token(req))) ?? project;
         const existing = project.answers.find(
           (answer) => answer.clientAnswerId === input.clientAnswerId,
         );
-        return res
-          .status(existing?.status === 'processed' ? 200 : 202)
-          .json({ project, answer: existing ?? null, idempotent: true });
+        return res.status(claim.status === 'pending' ? 202 : 200).json({
+          project,
+          answer: existing ?? null,
+          status: claim.status,
+          idempotent: true,
+        });
       }
 
       const answer = {
@@ -260,7 +327,7 @@ export function createApp(dependencies = createDependencies()) {
       project.answers.push(answer);
       project.workflowStatus = 'interviewing';
       touch(project);
-      await store.saveProject(project, token(req));
+      project = await store.saveProject(project, token(req));
 
       try {
         const analysis = enforceStopRules(
@@ -274,13 +341,36 @@ export function createApp(dependencies = createDependencies()) {
         savedAnswer.processedAt = new Date().toISOString();
         touch(project);
         project = await store.saveProject(project, token(req));
-        return res.json({ project, answer: savedAnswer, idempotent: false });
+        await store.completeInterviewTurn(
+          userId(req),
+          project.id,
+          input.clientAnswerId,
+          'processed',
+          project,
+          null,
+          token(req),
+        );
+        return res.json({
+          project,
+          answer: savedAnswer,
+          status: 'processed',
+          idempotent: false,
+        });
       } catch {
         const failed = project.answers.find((item) => item.id === answer.id)!;
         failed.status = 'failed';
         failed.errorCode = 'MODEL_UNAVAILABLE';
         touch(project);
-        await store.saveProject(project, token(req));
+        project = await store.saveProject(project, token(req));
+        await store.completeInterviewTurn(
+          userId(req),
+          project.id,
+          input.clientAnswerId,
+          'failed',
+          project,
+          'MODEL_UNAVAILABLE',
+          token(req),
+        );
         throw new HttpError(
           502,
           'MODEL_UNAVAILABLE',
@@ -295,10 +385,38 @@ export function createApp(dependencies = createDependencies()) {
     asyncRoute(async (req, res) => {
       const project = await ownedProject(req, store);
       const answer = project.answers.find(
-        (item) => item.clientAnswerId === req.params.clientAnswerId,
+        (item) => item.clientAnswerId === req.params['clientAnswerId'],
       );
       if (!answer) throw new HttpError(404, 'ANSWER_NOT_FOUND', 'Answer not found.');
-      if (answer.status === 'processed') return res.json({ project, answer, idempotent: true });
+      const claim = await store.claimInterviewTurn(
+        userId(req),
+        project.id,
+        answer.clientAnswerId,
+        {
+          clientAnswerId: answer.clientAnswerId,
+          question: answer.question,
+          dimension: answer.dimension,
+          answer: answer.text,
+        },
+        true,
+        token(req),
+      );
+      if (claim.state === 'busy')
+        throw new HttpError(409, 'PROJECT_BUSY', 'Another answer is being processed.');
+      if (claim.state === 'conflict')
+        throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'Stored answer content does not match.');
+      if (claim.state === 'duplicate') {
+        const resultProject = claim.result ?? project;
+        const resultAnswer = resultProject.answers.find(
+          (item) => item.clientAnswerId === answer.clientAnswerId,
+        );
+        return res.status(claim.status === 'pending' ? 202 : 200).json({
+          project: resultProject,
+          answer: resultAnswer ?? answer,
+          status: claim.status,
+          idempotent: true,
+        });
+      }
       answer.status = 'pending';
       answer.errorCode = null;
       touch(project);
@@ -312,12 +430,31 @@ export function createApp(dependencies = createDependencies()) {
         answer.status = 'processed';
         answer.processedAt = new Date().toISOString();
         touch(project);
-        res.json({ project: await store.saveProject(project, token(req)), answer });
+        const saved = await store.saveProject(project, token(req));
+        await store.completeInterviewTurn(
+          userId(req),
+          project.id,
+          answer.clientAnswerId,
+          'processed',
+          saved,
+          null,
+          token(req),
+        );
+        return res.json({ project: saved, answer, status: 'processed', idempotent: false });
       } catch {
         answer.status = 'failed';
         answer.errorCode = 'MODEL_UNAVAILABLE';
         touch(project);
-        await store.saveProject(project, token(req));
+        const failed = await store.saveProject(project, token(req));
+        await store.completeInterviewTurn(
+          userId(req),
+          project.id,
+          answer.clientAnswerId,
+          'failed',
+          failed,
+          'MODEL_UNAVAILABLE',
+          token(req),
+        );
         throw new HttpError(
           502,
           'MODEL_UNAVAILABLE',
@@ -329,7 +466,7 @@ export function createApp(dependencies = createDependencies()) {
 
   protectedApi.post(
     '/projects/:projectId/briefs/generate',
-    perUserRateLimit(8, 60),
+    perUserRateLimit(config, 8, 60),
     asyncRoute(async (req, res) => {
       const project = await ownedProject(req, store);
       try {
@@ -372,7 +509,7 @@ export function createApp(dependencies = createDependencies()) {
       project.briefVersions.push(briefVersionSchema.parse(brief));
       project.workflowStatus = 'needs_review';
       touch(project);
-      res
+      return res
         .status(201)
         .json({ project: await store.saveProject(project, token(req)), brief, idempotent: false });
     }),
@@ -476,9 +613,9 @@ export function createApp(dependencies = createDependencies()) {
 
   protectedApi.get(
     '/notion/connect',
-    asyncRoute(async (req, res) => {
-      res.json({ authorizationUrl: notion.authorizationUrl(userId(req)) });
-    }),
+    asyncRoute((req, res) =>
+      Promise.resolve(res.json({ authorizationUrl: notion.authorizationUrl(userId(req)) })),
+    ),
   );
 
   protectedApi.get(
@@ -509,8 +646,8 @@ export function createApp(dependencies = createDependencies()) {
   protectedApi.get(
     '/notion/callback',
     asyncRoute(async (req, res) => {
-      const code = z.string().min(1).parse(req.query.code);
-      const state = z.string().min(1).parse(req.query.state);
+      const code = z.string().min(1).parse(req.query['code']);
+      const state = z.string().min(1).parse(req.query['state']);
       notion.verifyState(state, userId(req));
       const tokenResponse = await notion.exchangeCode(code);
       const now = new Date();
@@ -559,7 +696,7 @@ export function createApp(dependencies = createDependencies()) {
 
   protectedApi.post(
     '/projects/:projectId/notion/sync',
-    perUserRateLimit(8, 60),
+    perUserRateLimit(config, 8, 60),
     asyncRoute(async (req, res) => {
       const project = await ownedProject(req, store);
       try {
@@ -568,83 +705,88 @@ export function createApp(dependencies = createDependencies()) {
         throw workflowHttpError(error);
       }
       const brief = project.briefVersions.at(-1)!;
-      const existing = await store.getNotionSync(
-        userId(req),
-        project.id,
-        brief.version,
-        token(req),
-      );
-      if (existing?.status === 'synced' && existing.notionPageId) {
-        return res.json({ project, pageId: existing.notionPageId, idempotent: true });
-      }
       const connection = await usableNotionConnection(req, store, notion, config);
       const now = new Date().toISOString();
-      await store.saveNotionSync(
+      const contentHash = createHash('sha256')
+        .update(JSON.stringify({ title: brief.title, sections: brief.sections }))
+        .digest('hex');
+      const claim = await store.claimNotionSync(
         {
           ownerId: userId(req),
           projectId: project.id,
           briefVersion: brief.version,
-          notionPageId: existing?.notionPageId ?? null,
+          notionPageId: project.notionPageId,
           status: 'syncing',
           errorCode: null,
+          operationId: randomUUID(),
+          leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+          contentHash,
           updatedAt: now,
         },
         token(req),
       );
-      project.syncStatus = 'syncing';
-      touch(project);
-      await store.saveProject(project, token(req));
-      try {
-        const syncInput = {
-          accessToken: connection.accessToken,
-          parentId: project.notionParentId!,
-          existingPageId: existing?.notionPageId ?? project.notionPageId,
-          title: brief.title,
-          sections: brief.sections,
-          version: brief.version,
-        };
-        let pageId: string;
-        try {
-          pageId = await notion.createOrUpdatePage(syncInput);
-        } catch (error) {
-          if (!(error instanceof NotionApiError) || error.status !== 401) throw error;
-          const refreshed = await usableNotionConnection(req, store, notion, config, true);
-          pageId = await notion.createOrUpdatePage({
-            ...syncInput,
-            accessToken: refreshed.accessToken,
-          });
-        }
-        await store.saveNotionSync(
-          {
-            ownerId: userId(req),
-            projectId: project.id,
-            briefVersion: brief.version,
-            notionPageId: pageId,
-            status: 'synced',
-            errorCode: null,
-            updatedAt: new Date().toISOString(),
-          },
-          token(req),
+      if (claim.state === 'conflict') {
+        throw new HttpError(
+          409,
+          'SYNC_CONTENT_CONFLICT',
+          'The approved version changed after sync was claimed.',
         );
-        project.notionPageId = pageId;
+      }
+      if (claim.state === 'synced' && claim.record.notionPageId) {
+        project.notionPageId = claim.record.notionPageId;
         project.syncStatus = 'synced';
         project.lastSyncError = null;
         touch(project);
         return res.json({
           project: await store.saveProject(project, token(req)),
-          pageId,
-          idempotent: false,
+          pageId: claim.record.notionPageId,
+          status: 'synced',
+          idempotent: true,
         });
+      }
+      if (claim.state === 'syncing') {
+        project.syncStatus = 'syncing';
+        return res.status(202).json({
+          project,
+          pageId: claim.record.notionPageId,
+          status: 'syncing',
+          idempotent: true,
+        });
+      }
+      project.syncStatus = 'syncing';
+      touch(project);
+      await store.saveProject(project, token(req));
+      let pageId = claim.record.notionPageId;
+      try {
+        const syncInput = {
+          accessToken: connection.accessToken,
+          parentId: project.notionParentId!,
+          existingPageId: pageId ?? project.notionPageId,
+          projectId: project.id,
+          title: brief.title,
+          sections: brief.sections,
+          version: brief.version,
+          contentHash,
+        };
+        try {
+          pageId = await notion.syncBriefVersion(syncInput);
+        } catch (error) {
+          if (!(error instanceof NotionApiError) || error.status !== 401) throw error;
+          const refreshed = await usableNotionConnection(req, store, notion, config, true);
+          pageId = await notion.syncBriefVersion({
+            ...syncInput,
+            accessToken: refreshed.accessToken,
+          });
+        }
       } catch (error) {
         const code = error instanceof NotionApiError ? error.message : 'NOTION_UNAVAILABLE';
-        await store.saveNotionSync(
+        await store.completeNotionSync(
           {
-            ownerId: userId(req),
-            projectId: project.id,
-            briefVersion: brief.version,
-            notionPageId: existing?.notionPageId ?? null,
+            ...claim.record,
+            notionPageId: pageId,
             status: 'error',
             errorCode: code,
+            leaseExpiresAt: null,
             updatedAt: new Date().toISOString(),
           },
           token(req),
@@ -659,6 +801,27 @@ export function createApp(dependencies = createDependencies()) {
           'Notion sync failed and can be retried safely.',
         );
       }
+      await store.completeNotionSync(
+        {
+          ...claim.record,
+          notionPageId: pageId,
+          status: 'synced',
+          errorCode: null,
+          leaseExpiresAt: null,
+          updatedAt: new Date().toISOString(),
+        },
+        token(req),
+      );
+      project.notionPageId = pageId;
+      project.syncStatus = 'synced';
+      project.lastSyncError = null;
+      touch(project);
+      return res.json({
+        project: await store.saveProject(project, token(req)),
+        pageId,
+        status: 'synced',
+        idempotent: false,
+      });
     }),
   );
 
@@ -694,7 +857,7 @@ function token(req: Request): string | undefined {
 }
 
 async function ownedProject(req: Request, store: ProjectStore): Promise<Project> {
-  const project = await store.getProject(userId(req), String(req.params.projectId), token(req));
+  const project = await store.getProject(userId(req), String(req.params['projectId']), token(req));
   if (!project) throw new HttpError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
   return project;
 }
@@ -720,6 +883,14 @@ function normalizeErrors(
     return next(new HttpError(400, 'INVALID_INPUT', 'Request data is invalid.'));
   if (error instanceof SyntaxError)
     return next(new HttpError(400, 'INVALID_JSON', 'Request body must be valid JSON.'));
+  if (error instanceof ProjectVersionConflictError)
+    return next(
+      new HttpError(
+        409,
+        'PROJECT_VERSION_CONFLICT',
+        'The project changed in another request. Reload and try again.',
+      ),
+    );
   next(error);
 }
 

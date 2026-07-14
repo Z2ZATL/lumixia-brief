@@ -1,8 +1,8 @@
-import { createApp } from './app.js';
+import { createApp, createDependencies } from './app.js';
 import { loadConfig } from './config.js';
 
 const config = loadConfig();
-const app = createApp();
+const app = createApp(createDependencies(config));
 
 app.listen(config.PORT, '127.0.0.1', () => {
   process.stdout.write(

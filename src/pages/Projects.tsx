@@ -1,15 +1,22 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Project } from '../../shared/contracts';
 import { ConfidencePanel } from '../components/ConfidencePanel';
-import { useI18n } from '../i18n';
+import { useI18n, type MessageKey } from '../i18n';
 import { projectApi } from '../lib/api';
 
-const statusLabel: Record<Project['workflowStatus'], string> = {
-  draft: 'Draft',
-  interviewing: 'Interviewing',
-  needs_review: 'Needs review',
-  approved: 'Approved',
+const statusLabel: Record<Project['workflowStatus'], MessageKey> = {
+  draft: 'statusDraft',
+  interviewing: 'statusInterviewing',
+  needs_review: 'statusNeedsReview',
+  approved: 'statusApproved',
+};
+
+const syncLabel: Record<Project['syncStatus'], MessageKey> = {
+  not_synced: 'syncNotSynced',
+  syncing: 'syncSyncing',
+  synced: 'syncSynced',
+  error: 'syncError',
 };
 
 export function Projects() {
@@ -18,30 +25,65 @@ export function Projects() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const submittingRef = useRef(false);
 
   useEffect(() => {
+    let active = true;
     projectApi
       .list()
-      .then(({ projects }) => setProjects(projects))
-      .catch((error: Error) => setError(error.message))
-      .finally(() => setLoading(false));
+      .then(({ projects }) => {
+        if (active) setProjects(projects);
+      })
+      .catch((error: Error) => {
+        if (active) setError(error.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
     const data = new FormData(event.currentTarget);
+    const rawTitle = data.get('title');
+    const rawInitialPrompt = data.get('initialPrompt');
+    if (typeof rawTitle !== 'string' || typeof rawInitialPrompt !== 'string') return;
+    submittingRef.current = true;
+    setSubmitting(true);
     setError('');
     try {
       const { project } = await projectApi.create({
-        title: String(data.get('title')),
-        initialPrompt: String(data.get('initialPrompt')),
+        title: rawTitle,
+        initialPrompt: rawInitialPrompt,
         locale,
       });
       await projectApi.startInterview(project.id);
-      navigate(`/projects/${project.id}/interview`);
+      void navigate(`/projects/${project.id}/interview`);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Could not create project.');
+      setError(error instanceof Error ? error.message : t('createFailed'));
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
+  }
+
+  async function removeProject(project: Project) {
+    if (!window.confirm(`${t('deleteConfirm')}\n${project.title}`)) return;
+    setDeletingId(project.id);
+    setError('');
+    try {
+      await projectApi.remove(project.id);
+      setProjects((current) => current.filter((item) => item.id !== project.id));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t('deleteFailed'));
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -49,12 +91,9 @@ export function Projects() {
     <main className="page-shell projects-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">PRIVATE WORKSPACE</span>
+          <span className="eyebrow">{t('privateWorkspace')}</span>
           <h1>{t('allProjects')}</h1>
-          <p>
-            Each brief shows exactly where context is clear—and where a human decision is still
-            needed.
-          </p>
+          <p>{t('projectListBody')}</p>
         </div>
         <button className="button primary" onClick={() => setCreating(true)}>
           ＋ {t('newProject')}
@@ -68,9 +107,9 @@ export function Projects() {
       {creating && (
         <section className="create-card">
           <div className="create-intro">
-            <span>New alignment interview</span>
-            <h2>What are you trying to build?</h2>
-            <p>Start messy. Lumixia will help make the important parts explicit.</p>
+            <span>{t('newAlignmentInterview')}</span>
+            <h2>{t('newInterviewTitle')}</h2>
+            <p>{t('newInterviewBody')}</p>
           </div>
           <form onSubmit={submit}>
             <label>
@@ -81,7 +120,7 @@ export function Projects() {
                 maxLength={120}
                 required
                 autoFocus
-                placeholder="e.g. Founder launch brief"
+                placeholder={t('titlePlaceholder')}
               />
             </label>
             <label>
@@ -92,14 +131,21 @@ export function Projects() {
                 maxLength={10000}
                 required
                 rows={6}
-                placeholder="I want Codex to build a launch experience, but I’m not sure what the first version needs…"
+                placeholder={t('promptPlaceholder')}
               />
             </label>
             <div className="form-actions">
-              <button type="button" className="button ghost" onClick={() => setCreating(false)}>
+              <button
+                type="button"
+                className="button ghost"
+                onClick={() => setCreating(false)}
+                disabled={submitting}
+              >
                 {t('cancel')}
               </button>
-              <button className="button primary">{t('create')} →</button>
+              <button className="button primary" disabled={submitting}>
+                {submitting ? t('thinking') : `${t('create')} →`}
+              </button>
             </div>
           </form>
         </section>
@@ -126,23 +172,41 @@ export function Projects() {
                 ? `/projects/${project.id}/brief`
                 : `/projects/${project.id}/interview`;
             return (
-              <Link to={href} className="project-card" key={project.id}>
-                <div className="project-card-top">
-                  <span className={`status ${project.workflowStatus}`}>
-                    {statusLabel[project.workflowStatus]}
+              <article className="project-card" key={project.id}>
+                <Link to={href} className="project-card-link">
+                  <div className="project-card-top">
+                    <span className={`status ${project.workflowStatus}`}>
+                      {t(statusLabel[project.workflowStatus])}
+                    </span>
+                    <span className="updated">
+                      {new Date(project.updatedAt).toLocaleDateString(locale)}
+                    </span>
+                  </div>
+                  <h2>{project.title}</h2>
+                  <p>{project.initialPrompt}</p>
+                  <ConfidencePanel project={project} compact />
+                  <div className="project-meta">
+                    <span>
+                      {project.answers.length} {t('interviewAnswers')}
+                    </span>
+                    <b>{t('open')} →</b>
+                  </div>
+                </Link>
+                <div className="project-card-actions">
+                  <span className={`sync-status ${project.syncStatus}`}>
+                    {t(syncLabel[project.syncStatus])}
                   </span>
-                  <span className="updated">
-                    {new Date(project.updatedAt).toLocaleDateString(locale)}
-                  </span>
+                  <button
+                    type="button"
+                    className="delete-project"
+                    onClick={() => void removeProject(project)}
+                    disabled={deletingId === project.id}
+                    aria-label={`${t('delete')} ${project.title}`}
+                  >
+                    {deletingId === project.id ? '…' : t('delete')}
+                  </button>
                 </div>
-                <h2>{project.title}</h2>
-                <p>{project.initialPrompt}</p>
-                <ConfidencePanel project={project} compact />
-                <div className="project-meta">
-                  <span>{project.answers.length} interview answers</span>
-                  <b>Open →</b>
-                </div>
-              </Link>
+              </article>
             );
           })}
         </section>

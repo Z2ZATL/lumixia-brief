@@ -29,13 +29,15 @@ export interface NotionProvider {
   exchangeCode(code: string): Promise<NotionTokenResponse>;
   refreshToken(refreshToken: string): Promise<NotionTokenResponse>;
   listPages(accessToken: string): Promise<NotionPageOption[]>;
-  createOrUpdatePage(input: {
+  syncBriefVersion(input: {
     accessToken: string;
     parentId: string;
     existingPageId: string | null;
+    projectId: string;
     title: string;
     sections: BriefSections;
     version: number;
+    contentHash: string;
   }): Promise<string>;
 }
 
@@ -116,37 +118,88 @@ export class LiveNotionProvider implements NotionProvider {
     });
   }
 
-  async createOrUpdatePage(input: {
+  async syncBriefVersion(input: {
     accessToken: string;
     parentId: string;
     existingPageId: string | null;
+    projectId: string;
     title: string;
     sections: BriefSections;
     version: number;
+    contentHash: string;
   }): Promise<string> {
-    if (input.existingPageId) {
-      await this.request(`/pages/${input.existingPageId}`, input.accessToken, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          properties: {
-            title: { type: 'title', title: [richText(`${input.title} — v${input.version}`)] },
-          },
-        }),
-      });
-      return input.existingPageId;
+    const projectMarker = `LB-${input.projectId}`;
+    const versionMarker = `${projectMarker}:v${input.version}:${input.contentHash}`;
+    const existingPageId =
+      input.existingPageId ?? (await this.findPageByMarker(input.accessToken, projectMarker));
+    const pageId =
+      existingPageId ?? (await this.createPage(input.accessToken, input.parentId, projectMarker));
+    await this.updatePageTitle(
+      input.accessToken,
+      pageId,
+      `${input.title} — v${input.version} [${projectMarker}]`,
+    );
+    if (!(await this.hasVersionMarker(input.accessToken, pageId, versionMarker))) {
+      await this.appendBlocks(
+        input.accessToken,
+        pageId,
+        versionBlocks(input.version, versionMarker, input.sections),
+      );
     }
+    return pageId;
+  }
 
-    const response = (await this.request('/pages', input.accessToken, {
+  private async findPageByMarker(token: string, marker: string): Promise<string | null> {
+    const result = (await this.request('/search', token, {
+      method: 'POST',
+      body: JSON.stringify({ query: marker, page_size: 20 }),
+    })) as { results?: Array<{ id?: string; properties?: unknown }> };
+    const page = result.results?.find((item) => JSON.stringify(item.properties).includes(marker));
+    return page?.id ?? null;
+  }
+
+  private async createPage(token: string, parentId: string, marker: string): Promise<string> {
+    const created = (await this.request('/pages', token, {
       method: 'POST',
       body: JSON.stringify({
-        parent: { type: 'page_id', page_id: input.parentId },
-        properties: {
-          title: { type: 'title', title: [richText(`${input.title} — v${input.version}`)] },
-        },
-        children: notionBlocks(input.sections),
+        parent: { type: 'page_id', page_id: parentId },
+        properties: { title: { type: 'title', title: richTextArray(marker) } },
       }),
     })) as { id: string };
-    return response.id;
+    return created.id;
+  }
+
+  private updatePageTitle(token: string, pageId: string, title: string): Promise<unknown> {
+    return this.request(`/pages/${pageId}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        properties: { title: { type: 'title', title: richTextArray(title) } },
+      }),
+    });
+  }
+
+  private async hasVersionMarker(token: string, pageId: string, marker: string) {
+    let cursor: string | null = null;
+    do {
+      const suffix = cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : '';
+      const response = (await this.request(
+        `/blocks/${pageId}/children?page_size=100${suffix}`,
+        token,
+        { method: 'GET' },
+      )) as { results?: unknown[]; has_more?: boolean; next_cursor?: string | null };
+      if (response.results?.some((block) => JSON.stringify(block).includes(marker))) return true;
+      cursor = response.has_more ? (response.next_cursor ?? null) : null;
+    } while (cursor);
+    return false;
+  }
+
+  private async appendBlocks(token: string, pageId: string, blocks: NotionBlock[]) {
+    for (let index = 0; index < blocks.length; index += 100) {
+      await this.request(`/blocks/${pageId}/children`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ children: blocks.slice(index, index + 100) }),
+      });
+    }
   }
 
   private signState(payload: OAuthStatePayload): string {
@@ -170,24 +223,29 @@ export class LiveNotionProvider implements NotionProvider {
   private async request(path: string, token: string, init: RequestInit): Promise<unknown> {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const response = await fetch(`https://api.notion.com/v1${path}`, {
-        ...init,
-        signal: AbortSignal.timeout(15_000),
-        headers: {
-          'Content-Type': 'application/json',
-          'Notion-Version': NOTION_VERSION,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...init.headers,
-        },
-      });
-      if (response.ok) return response.json();
-      const error = new NotionApiError(response.status, `NOTION_${response.status}`);
-      lastError = error;
-      if (attempt === 2 || (response.status !== 429 && response.status < 500)) throw error;
-      const retryAfter = Number(response.headers.get('retry-after') ?? 0);
-      await new Promise((resolve) =>
-        setTimeout(resolve, retryAfter > 0 ? retryAfter * 1000 : 250 * 2 ** attempt),
-      );
+      try {
+        const response = await fetch(`https://api.notion.com/v1${path}`, {
+          ...init,
+          signal: AbortSignal.timeout(15_000),
+          headers: {
+            'Content-Type': 'application/json',
+            'Notion-Version': NOTION_VERSION,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...init.headers,
+          },
+        });
+        if (response.ok) return response.status === 204 ? null : response.json();
+        const error = new NotionApiError(response.status, `NOTION_${response.status}`);
+        lastError = error;
+        if (attempt === 2 || (response.status !== 429 && response.status < 500)) throw error;
+        const retryAfter = Number(response.headers.get('retry-after') ?? 0);
+        await delay(retryAfter > 0 ? retryAfter * 1000 : 250 * 2 ** attempt);
+      } catch (error) {
+        lastError = error;
+        const ambiguousCreate = path === '/pages' && init.method === 'POST';
+        if (error instanceof NotionApiError || ambiguousCreate || attempt === 2) throw error;
+        await delay(250 * 2 ** attempt);
+      }
     }
     throw lastError;
   }
@@ -231,21 +289,62 @@ export class MockNotionProvider implements NotionProvider {
       { id: 'mock-product-hub', title: 'Product briefs' },
     ];
   }
-  async createOrUpdatePage(input: {
+  async syncBriefVersion(input: {
     existingPageId: string | null;
     title: string;
+    projectId: string;
+    version: number;
   }): Promise<string> {
-    const id = input.existingPageId ?? `notion-${randomBytes(8).toString('hex')}`;
-    this.pages.set(id, input.title);
+    const existing = [...this.pages.entries()].find(([, marker]) =>
+      marker.includes(input.projectId),
+    );
+    const id = input.existingPageId ?? existing?.[0] ?? `notion-${randomBytes(8).toString('hex')}`;
+    this.pages.set(id, `${input.title}:v${input.version}:${input.projectId}`);
     return id;
   }
 }
 
+type NotionBlock = Record<string, unknown>;
+
 function richText(content: string) {
-  return { type: 'text', text: { content: content.slice(0, 2000) } };
+  return { type: 'text', text: { content } };
 }
 
-function notionBlocks(sections: BriefSections) {
+function richTextArray(content: string) {
+  return splitText(content).map(richText);
+}
+
+function splitText(content: string): string[] {
+  if (!content) return [''];
+  const chunks: string[] = [];
+  for (let index = 0; index < content.length; index += 2000) {
+    chunks.push(content.slice(index, index + 2000));
+  }
+  return chunks;
+}
+
+function versionBlocks(version: number, marker: string, sections: BriefSections): NotionBlock[] {
+  return [
+    {
+      object: 'block',
+      type: 'divider',
+      divider: {},
+    },
+    {
+      object: 'block',
+      type: 'heading_1',
+      heading_1: { rich_text: richTextArray(`Version ${version}`) },
+    },
+    {
+      object: 'block',
+      type: 'paragraph',
+      paragraph: { rich_text: richTextArray(marker) },
+    },
+    ...notionBlocks(sections),
+  ];
+}
+
+function notionBlocks(sections: BriefSections): NotionBlock[] {
   const entries: Array<[string, string | string[]]> = [
     ['Summary', sections.summary],
     ['Problem statement', sections.problemStatement],
@@ -272,13 +371,19 @@ function notionBlocks(sections: BriefSections) {
         type: 'heading_2',
         heading_2: { rich_text: [richText(heading)] },
       },
-      ...values.filter(Boolean).map((text) => ({
-        object: 'block',
-        type: Array.isArray(value) ? 'bulleted_list_item' : 'paragraph',
-        [Array.isArray(value) ? 'bulleted_list_item' : 'paragraph']: {
-          rich_text: [richText(text)],
-        },
-      })),
+      ...values.filter(Boolean).flatMap((text) =>
+        splitText(text).map((chunk) => ({
+          object: 'block',
+          type: Array.isArray(value) ? 'bulleted_list_item' : 'paragraph',
+          [Array.isArray(value) ? 'bulleted_list_item' : 'paragraph']: {
+            rich_text: [richText(chunk)],
+          },
+        })),
+      ),
     ];
   });
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

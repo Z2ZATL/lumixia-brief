@@ -1,5 +1,13 @@
 import type { Project } from '../../shared/contracts.js';
-import type { NotionConnection, NotionSyncRecord, ProjectStore } from './types.js';
+import {
+  ProjectVersionConflictError,
+  type NotionConnection,
+  type NotionSyncClaim,
+  type NotionSyncRecord,
+  type InterviewTurnClaim,
+  type InterviewTurnStatus,
+  type ProjectStore,
+} from './types.js';
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -7,7 +15,18 @@ function clone<T>(value: T): T {
 
 export class MemoryProjectStore implements ProjectStore {
   private readonly projects = new Map<string, Project>();
-  private readonly answerClaims = new Set<string>();
+  private readonly answerClaims = new Map<
+    string,
+    {
+      ownerId: string;
+      projectId: string;
+      payload: Record<string, unknown>;
+      status: InterviewTurnStatus;
+      result: Project | null;
+      errorCode: string | null;
+      leaseExpiresAt: number;
+    }
+  >();
   private readonly notionConnections = new Map<string, NotionConnection>();
   private readonly notionSyncs = new Map<string, NotionSyncRecord>();
 
@@ -32,8 +51,11 @@ export class MemoryProjectStore implements ProjectStore {
   async saveProject(project: Project): Promise<Project> {
     const existing = this.projects.get(project.id);
     if (!existing || existing.ownerId !== project.ownerId) throw new Error('PROJECT_NOT_FOUND');
-    this.projects.set(project.id, clone(project));
-    return clone(project);
+    if (existing.revision !== project.revision) throw new ProjectVersionConflictError();
+    const next = { ...clone(project), revision: project.revision + 1 };
+    this.projects.set(project.id, next);
+    project.revision = next.revision;
+    return clone(next);
   }
 
   async deleteProject(ownerId: string, projectId: string): Promise<boolean> {
@@ -42,11 +64,69 @@ export class MemoryProjectStore implements ProjectStore {
     return this.projects.delete(projectId);
   }
 
-  async claimAnswer(ownerId: string, projectId: string, clientAnswerId: string): Promise<boolean> {
+  async claimInterviewTurn(
+    ownerId: string,
+    projectId: string,
+    clientAnswerId: string,
+    payload: Record<string, unknown>,
+    retryFailed: boolean,
+  ): Promise<InterviewTurnClaim> {
     const key = `${ownerId}:${projectId}:${clientAnswerId}`;
-    if (this.answerClaims.has(key)) return false;
-    this.answerClaims.add(key);
-    return true;
+    const existing = this.answerClaims.get(key);
+    const now = Date.now();
+    if (existing) {
+      if (JSON.stringify(existing.payload) !== JSON.stringify(payload)) {
+        return { state: 'conflict', status: existing.status, result: null, errorCode: null };
+      }
+      const retryable =
+        (existing.status === 'failed' && retryFailed) ||
+        (existing.status === 'pending' && existing.leaseExpiresAt <= now);
+      if (retryable) {
+        existing.status = 'pending';
+        existing.errorCode = null;
+        existing.leaseExpiresAt = now + 45_000;
+        return { state: 'claimed', status: 'pending', result: null, errorCode: null };
+      }
+      return {
+        state: 'duplicate',
+        status: existing.status,
+        result: existing.result ? clone(existing.result) : null,
+        errorCode: existing.errorCode,
+      };
+    }
+    const pending = [...this.answerClaims.values()].find(
+      (claim) =>
+        claim.ownerId === ownerId &&
+        claim.projectId === projectId &&
+        claim.status === 'pending' &&
+        claim.leaseExpiresAt > now,
+    );
+    if (pending) return { state: 'busy', status: 'pending', result: null, errorCode: null };
+    this.answerClaims.set(key, {
+      ownerId,
+      projectId,
+      payload: clone(payload),
+      status: 'pending',
+      result: null,
+      errorCode: null,
+      leaseExpiresAt: now + 45_000,
+    });
+    return { state: 'claimed', status: 'pending', result: null, errorCode: null };
+  }
+
+  async completeInterviewTurn(
+    ownerId: string,
+    projectId: string,
+    clientAnswerId: string,
+    status: Exclude<InterviewTurnStatus, 'pending'>,
+    result: Project,
+    errorCode: string | null,
+  ): Promise<void> {
+    const claim = this.answerClaims.get(`${ownerId}:${projectId}:${clientAnswerId}`);
+    if (!claim) throw new Error('TURN_NOT_CLAIMED');
+    claim.status = status;
+    claim.result = clone(result);
+    claim.errorCode = errorCode;
   }
 
   async getNotionConnection(ownerId: string): Promise<NotionConnection | null> {
@@ -62,23 +142,35 @@ export class MemoryProjectStore implements ProjectStore {
     this.notionConnections.delete(ownerId);
   }
 
-  async getNotionSync(
-    ownerId: string,
-    projectId: string,
-    briefVersion: number,
-  ): Promise<NotionSyncRecord | null> {
-    const record = this.notionSyncs.get(`${ownerId}:${projectId}:${briefVersion}`);
-    return record ? clone(record) : null;
+  async claimNotionSync(record: NotionSyncRecord): Promise<NotionSyncClaim> {
+    const key = `${record.ownerId}:${record.projectId}:${record.briefVersion}`;
+    const existing = this.notionSyncs.get(key);
+    if (existing?.contentHash && existing.contentHash !== record.contentHash) {
+      return { state: 'conflict', record: clone(existing) };
+    }
+    if (existing?.status === 'synced') return { state: 'synced', record: clone(existing) };
+    if (
+      existing?.status === 'syncing' &&
+      existing.leaseExpiresAt &&
+      Date.parse(existing.leaseExpiresAt) > Date.now()
+    ) {
+      return { state: 'syncing', record: clone(existing) };
+    }
+    const claimed = {
+      ...record,
+      notionPageId: existing?.notionPageId ?? record.notionPageId,
+      status: 'syncing' as const,
+    };
+    this.notionSyncs.set(key, clone(claimed));
+    return { state: 'claimed', record: clone(claimed) };
   }
 
-  async saveNotionSync(record: NotionSyncRecord): Promise<void> {
-    this.notionSyncs.set(
-      `${record.ownerId}:${record.projectId}:${record.briefVersion}`,
-      clone(record),
-    );
-  }
-
-  async ping(): Promise<boolean> {
-    return true;
+  async completeNotionSync(record: NotionSyncRecord): Promise<void> {
+    const key = `${record.ownerId}:${record.projectId}:${record.briefVersion}`;
+    const existing = this.notionSyncs.get(key);
+    if (!existing || existing.operationId !== record.operationId) {
+      throw new Error('NOTION_OPERATION_NOT_CLAIMED');
+    }
+    this.notionSyncs.set(key, clone(record));
   }
 }

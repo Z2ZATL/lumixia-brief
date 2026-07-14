@@ -31,6 +31,7 @@ describe('confidence rubric', () => {
       ),
     ).toBe(75);
     expect(confidenceScore(emptyAssessments())).toBe(0);
+    expect(confidenceScore([undefined, null])).toBe(0);
   });
 
   it('requires five answers, 75%, essential dimensions partial, and no blocker', () => {

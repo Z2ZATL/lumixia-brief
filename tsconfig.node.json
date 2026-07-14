@@ -9,6 +9,14 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noEmit": true,
     "types": ["node"],
     "resolveJsonModule": true
@@ -22,6 +30,8 @@
     "vite.config.ts",
     "vitest.config.ts",
     "vitest.integration.config.ts",
+    "vitest.ui.config.ts",
     "playwright.config.ts"
-  ]
+  ],
+  "exclude": ["tests/ui"]
 }
