@@ -3,9 +3,9 @@
 - Date: 2026-07-15 (Asia/Bangkok)
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Branch: `agent/modular-refactor`
-- Core commit: pending publication
-- PR: pending publication
-- CI: pending publication
+- Core commit: `76458293087f4fb38a645b79bd8dd88f0d44e298`
+- PR: <https://github.com/Z2ZATL/lumixia-brief/pull/12>
+- CI: <https://github.com/Z2ZATL/lumixia-brief/actions/runs/29364799154> — Required CI passed
 
 ## Sanitized owner instruction
 
@@ -47,6 +47,6 @@ Separate the hardened application into bounded server and client modules without
 
 ## Handoffs or blockers
 
-- The PR, immutable commit SHA, and hosted CI evidence will be added after publication.
+- PR #12 is intentionally stacked on PR #11 so defect hardening and behavior-preserving refactoring remain independently reviewable.
 - Development-only Vercel CLI advisories remain separated in `docs/security/development-advisories.md`; production risk remains clean.
 - Judge repository invitations remain pending explicit owner confirmation at the time permissions are changed.
