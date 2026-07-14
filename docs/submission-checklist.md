@@ -27,21 +27,19 @@
 
 ## Repository and permissions
 
-- [ ] Private repository `Z2ZATL/lumixia-brief` created and initial commit pushed
-- [ ] `main` protection: PR, up-to-date required CI, resolved conversations, linear history, no force push, no required reviewer
+- [x] Public repository `Z2ZATL/lumixia-brief` available to judges without an invitation
+- [x] Apache-2.0 `LICENSE` and project `NOTICE` recognized by GitHub
+- [x] Full-history secret scan passed before changing repository visibility
+- [x] `main` protection: PR, up-to-date required CI, resolved conversations, linear history, no force push, no required reviewer
 - [ ] CI green on the final SHA and evidence artifacts downloaded/checked
-- [ ] Owner explicitly confirms the permission change at action time
-- [ ] Invite `testing@devpost.com`
-- [ ] Invite `build-week-event@openai.com`
-- [ ] Verify both judge accounts can access the private repository
 
 ## Submission
 
 - [ ] Public YouTube video under three minutes with voiceover
 - [ ] Video names Codex implementation and GPT-5.6 runtime roles
 - [ ] Devpost category: Work & Productivity
-- [ ] Project description, production Vercel URL, private repo URL, and `/feedback` Session ID entered
+- [ ] Project description, production Vercel URL, public repo URL, and `/feedback` Session ID entered
 - [ ] Final submission dry run from a signed-out browser
 - [ ] Submit before internal target: 2026-07-21 23:00 Asia/Bangkok
 
-External credential entry, OTPs, OAuth-console creation, video publication, and judge permission changes are owner handoffs and must not be guessed or bypassed.
+External credential entry, OTPs, OAuth-console creation, and video publication require authenticated owner sessions and must not be guessed or bypassed.

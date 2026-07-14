@@ -5,6 +5,7 @@
 **Build Week track:** Work & Productivity<br>
 **Primary demo:** A founder preparing a brief for Codex<br>
 **Core Codex Session ID:** `019f614d-cd80-76d3-8151-b8271f575a3f`<br>
+**Source:** <https://github.com/Z2ZATL/lumixia-brief><br>
 **Demo URL:** pending production credentials and Vercel handoff
 
 Lumixia Brief is a React web app that turns an unclear project idea into a reviewable, versioned one-page brief. GPT-5.6 asks one adaptive question per submitted answer, identifies facts, assumptions, and contradictions, and assesses eight clarity dimensions. The server calculates the score and decides when the brief is ready. A human must review and approve an immutable snapshot before Notion receives anything.
@@ -200,6 +201,10 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 - **Notion shows 401:** reconnect only if automatic refresh reports `NOTION_RECONNECT_REQUIRED`.
 - **OneDrive dev is slow:** keep daily Node development native; use Docker only for Supabase and portability gates.
 
+## License
+
+Lumixia Brief is open-source software licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for project attribution. The `private` package flag only prevents accidental publication to the npm registry; it does not restrict the rights granted by the repository license. Connected services such as OpenAI, Clerk, Supabase, Notion, Sentry, and Vercel remain subject to their own terms.
+
 ## Submission handoff
 
-The project cannot complete OAuth console setup, production secrets, Google/TOTP enrollment, Vercel ownership, UptimeRobot monitors, YouTube publishing, or repository permission changes without the owner. These are tracked explicitly in [docs/submission-checklist.md](docs/submission-checklist.md). Do not invite judge accounts until the owner confirms the permission change at action time.
+The project cannot complete OAuth console setup, production secrets, Google/TOTP enrollment, Vercel ownership, UptimeRobot monitors, or YouTube publishing without authenticated owner sessions. These are tracked explicitly in [docs/submission-checklist.md](docs/submission-checklist.md). The public repository requires no private judge invitations.
