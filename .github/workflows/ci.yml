@@ -33,7 +33,7 @@ jobs:
       - run: npm run evidence
       - name: Upload quality evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quality-evidence-${{ github.sha }}
           path: |
@@ -63,7 +63,7 @@ jobs:
       - name: Capture Supabase status
         if: always()
         run: npx supabase status --output json > supabase-status.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: rls-evidence-${{ github.sha }}
@@ -83,7 +83,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-evidence-${{ github.sha }}
@@ -131,7 +131,7 @@ jobs:
           image: lumixia-brief:${{ github.sha }}
           format: cyclonedx-json
           output-file: sbom.cdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: container-security-${{ github.sha }}
