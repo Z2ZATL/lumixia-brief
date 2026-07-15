@@ -6,8 +6,9 @@ const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   APP_ENV: z.enum(['local', 'preview', 'production']).default('local'),
   PORT: z.coerce.number().int().positive().default(8787),
-  APP_URL: z.string().url().default('http://localhost:5173'),
+  APP_URL: optionalUrl,
   ALLOWED_ORIGIN: optionalUrl,
+  VERCEL_URL: z.string().min(1).optional(),
   VERCEL_GIT_COMMIT_SHA: z.string().optional(),
   VITE_CLERK_PUBLISHABLE_KEY: z.string().optional(),
   CLERK_SECRET_KEY: z.string().optional(),
@@ -33,6 +34,7 @@ const environmentSchema = z.object({
 });
 type EnvironmentConfig = z.infer<typeof environmentSchema>;
 type RequiredConfigKey =
+  | 'APP_URL'
   | 'CLERK_SECRET_KEY'
   | 'NOTION_CLIENT_ID'
   | 'NOTION_CLIENT_SECRET'
@@ -51,10 +53,12 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   assertRuntimeModes(config);
   const missing = requiredConfigKeys(config).filter((key) => !config[key]);
   if (missing.length) throw new Error(`Missing configuration: ${missing.sort().join(', ')}`);
+  const appUrl = resolveAppUrl(config);
 
   return {
     ...config,
-    allowedOrigin: config.ALLOWED_ORIGIN ?? config.APP_URL,
+    APP_URL: appUrl,
+    allowedOrigin: config.ALLOWED_ORIGIN ?? appUrl,
     deploymentSha: config.VERCEL_GIT_COMMIT_SHA ?? 'local',
     authBypass:
       config.LOCAL_AUTH_BYPASS === 'true' &&
@@ -82,6 +86,7 @@ function requiredConfigKeys(config: EnvironmentConfig): RequiredConfigKey[] {
     ...(config.APP_ENV !== 'local'
       ? (['CLERK_SECRET_KEY', 'VITE_CLERK_PUBLISHABLE_KEY'] as const)
       : []),
+    ...(config.APP_ENV === 'production' ? (['APP_URL'] as const) : []),
   ];
 }
 
@@ -99,7 +104,18 @@ function assertRuntimeModes(config: EnvironmentConfig): void {
   if (config.APP_ENV === 'preview' && config.MODEL_PROVIDER_MODE !== 'mock') {
     throw new Error('Preview requires the deterministic mock model provider.');
   }
+  if (config.APP_ENV === 'preview' && !config.APP_URL && !config.VERCEL_URL) {
+    throw new Error('Preview requires APP_URL or the Vercel deployment URL.');
+  }
   if (config.APP_ENV === 'production' && config.MODEL_PROVIDER_MODE === 'mock') {
     throw new Error('Production forbids a mock model provider.');
   }
+}
+
+function resolveAppUrl(config: EnvironmentConfig): string {
+  if (config.APP_URL) return config.APP_URL;
+  if (config.APP_ENV === 'preview' && config.VERCEL_URL) {
+    return `https://${config.VERCEL_URL}`;
+  }
+  return 'http://localhost:5173';
 }

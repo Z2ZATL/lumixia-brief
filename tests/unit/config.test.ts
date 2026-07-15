@@ -51,6 +51,9 @@ describe('runtime configuration', () => {
 
   it('fails closed when live Notion or Supabase configuration is incomplete', () => {
     expect(() =>
+      loadConfig({ ...production, APP_URL: undefined, MODEL_PROVIDER_MODE: 'disabled' }),
+    ).toThrow('APP_URL');
+    expect(() =>
       loadConfig({ ...production, MODEL_PROVIDER_MODE: 'disabled', NOTION_CLIENT_SECRET: '' }),
     ).toThrow('NOTION_CLIENT_SECRET');
     expect(() =>
@@ -73,9 +76,14 @@ describe('runtime configuration', () => {
       ...production,
       NODE_ENV: 'production',
       APP_ENV: 'preview',
+      APP_URL: undefined,
+      ALLOWED_ORIGIN: undefined,
+      VERCEL_URL: 'lumixia-brief-preview.vercel.app',
       MODEL_PROVIDER_MODE: 'mock',
     });
     expect(preview.MODEL_PROVIDER_MODE).toBe('mock');
+    expect(preview.APP_URL).toBe('https://lumixia-brief-preview.vercel.app');
+    expect(preview.allowedOrigin).toBe('https://lumixia-brief-preview.vercel.app');
     expect(preview.authBypass).toBe(false);
     expect(() =>
       loadConfig({
@@ -85,6 +93,16 @@ describe('runtime configuration', () => {
         MODEL_PROVIDER_MODE: 'disabled',
       }),
     ).toThrow('Preview requires');
+    expect(() =>
+      loadConfig({
+        ...production,
+        NODE_ENV: 'production',
+        APP_ENV: 'preview',
+        APP_URL: undefined,
+        VERCEL_URL: undefined,
+        MODEL_PROVIDER_MODE: 'mock',
+      }),
+    ).toThrow('APP_URL or the Vercel deployment URL');
     expect(() =>
       loadConfig({ NODE_ENV: 'production', APP_ENV: 'local', MODEL_PROVIDER_MODE: 'mock' }),
     ).toThrow('APP_ENV must be preview or production');

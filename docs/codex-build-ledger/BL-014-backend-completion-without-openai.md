@@ -28,6 +28,7 @@ Complete the backend, provider isolation, correctness, security, coverage, opera
 - React Strict Mode could abort the first capability request before the replacement effect started, producing a browser `requestfailed` event. Request startup now defers one microtask while preserving real unmount cancellation.
 - An interrupted claim-completion write could leave a processed or failed interview answer behind a pending claim. Duplicate recovery now detects the stored answer, repairs the claim, and returns the original terminal result idempotently.
 - Randomized ciphertext and OAuth-state tamper tests replaced the final character with a fixed `x`, which occasionally left an already-`x` value unchanged and made Linux CI flaky. Both regressions now choose a replacement that is guaranteed to differ from the original byte representation.
+- Preview origin still defaulted to localhost even after `APP_ENV` separated Preview from Production. Preview now derives its exact origin from Vercel's deployment URL while Production requires an explicit public application URL.
 
 ## Surfaces changed
 
@@ -41,7 +42,7 @@ Complete the backend, provider isolation, correctness, security, coverage, opera
 
 - Format, ESLint with zero warnings, strict TypeScript, Knip, CSS consumer audit, and diff checks: passed
 - Unit/API/provider/operator suite: 84 tests passed
-- Whole-backend coverage: 94.78% lines, 91.74% statements, 93.12% functions, and 84.23% branches
+- Whole-backend coverage: 94.82% lines, 91.81% statements, 93.15% functions, and 84.54% branches
 - Security coverage: 100% lines and 90% branches
 - Service/workflow coverage: 94.98% lines and 85.49% branches
 - Supabase adapter coverage: 98.30% lines; no backend file has zero coverage
