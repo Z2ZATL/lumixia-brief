@@ -100,7 +100,7 @@ export function requireMfa(config: AppConfig) {
       if (!hasMfaClaim(claims)) {
         throw new HttpError(403, 'MFA_REQUIRED', 'Complete TOTP verification before continuing.');
       }
-      const token = await auth.getToken({ template: 'supabase' });
+      const token = await auth.getToken();
       if (!token) throw new HttpError(401, 'SUPABASE_TOKEN_REQUIRED', 'Session token unavailable.');
       req.authContext = { userId: auth.userId, supabaseToken: token, aal: 'aal2' };
       return next();

@@ -64,7 +64,7 @@ npm run supabase:start
 npm run supabase:reset
 ```
 
-Then set `DATA_MODE=supabase`, configure a Clerk Supabase JWT template, and provide the local Supabase URL/key.
+Then set `DATA_MODE=supabase`, activate Clerk's native Supabase integration, register the Clerk domain as a Supabase third-party auth provider, and provide the local Supabase URL/key.
 
 ## Environment variables
 
@@ -153,6 +153,7 @@ npm run test:coverage
 npm run test:integration
 npm run test:e2e
 npm run build
+npm run audit:all
 npm run audit:prod
 docker build --platform linux/amd64 -t lumixia-brief:local .
 ```
@@ -163,7 +164,7 @@ CI stores coverage, Playwright evidence, Supabase status, Trivy SARIF, CycloneDX
 
 ## CI/CD and environments
 
-- Pull requests: format, lint, typecheck, unit/API contracts, empty-DB migration, two-user MFA RLS, Playwright desktop/mobile, production build, Linux/amd64 Docker build, production audit, secret scan, critical image scan, and SBOM.
+- Pull requests: format, lint, typecheck, unit/API contracts, empty-DB migration, two-user MFA RLS, Playwright desktop/mobile, production build, Linux/amd64 Docker build, full and production audits, secret scan, critical image scan, and SBOM.
 - Preview: Vercel Git integration, Clerk development instance, Supabase staging, preview-only secrets.
 - Production: protected `main`, required **Required CI**, manual `production` environment approval, forward-only Supabase migration, then prebuilt Vercel deployment.
 - Set repository variable `PRODUCTION_RELEASE_ENABLED=true` only after every production secret and environment protection rule exists.
@@ -195,7 +196,7 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 ## Troubleshooting
 
 - **Production refuses to start:** read the missing-variable error; production deliberately fails closed.
-- **API returns `MFA_REQUIRED`:** enroll TOTP in Clerk Security, sign out/in, and verify the Supabase JWT template exposes `aal`, `fva`, or `amr`.
+- **API returns `MFA_REQUIRED`:** enroll TOTP in Clerk Security, sign out/in, and verify the Clerk session token exposes `aal`, `fva`, or `amr`.
 - **RLS returns no project:** confirm the active Clerk token `sub` matches `owner_id` and contains an accepted second-factor claim.
 - **Answer shows failed:** the answer is already saved. Use Retry; do not submit a new client answer ID.
 - **Notion shows 401:** reconnect only if automatic refresh reports `NOTION_RECONNECT_REQUIRED`.

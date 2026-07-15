@@ -16,5 +16,5 @@ Provider payloads and content are excluded from logs and monitoring. OpenAI uses
 ## Consequences
 
 - Judges must enroll TOTP before accessing the product.
-- Clerk dashboard and JWT template configuration are release-critical manual steps.
+- Clerk dashboard configuration and the native Supabase third-party auth connection are release-critical manual steps.
 - Support diagnostics use request IDs and sanitized provider error classes, not content.

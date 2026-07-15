@@ -35,9 +35,9 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       - name: Build and deploy the verified commit
         run: |
-          npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-          npx vercel build --prod --token="$VERCEL_TOKEN"
-          npx vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          npx --yes --loglevel=error vercel@56.1.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+          npx --yes --loglevel=error vercel@56.1.0 build --prod --token="$VERCEL_TOKEN"
+          npx --yes --loglevel=error vercel@56.1.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
