@@ -51,7 +51,8 @@ describe('Notion OAuth and page discovery', () => {
     expect(state).toBeTruthy();
     expect(() => live.verifyState(state!, 'owner-a')).not.toThrow();
     expect(() => live.verifyState(state!, 'owner-b')).toThrow('INVALID_OAUTH_STATE');
-    expect(() => live.verifyState(`${state!.slice(0, -1)}x`, 'owner-a')).toThrow(
+    const replacement = state!.endsWith('x') ? 'y' : 'x';
+    expect(() => live.verifyState(`${state!.slice(0, -1)}${replacement}`, 'owner-a')).toThrow(
       'INVALID_OAUTH_STATE',
     );
     expect(() => live.verifyState('malformed', 'owner-a')).toThrow('INVALID_OAUTH_STATE');
