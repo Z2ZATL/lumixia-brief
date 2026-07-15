@@ -4,9 +4,9 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6`
-- Commit: pending publication
-- PR: pending publication
-- CI: pending publication
+- Commits: `0206d63` (backend) and `9736e8e` (CI flake regression)
+- PR: [#23](https://github.com/Z2ZATL/lumixia-brief/pull/23)
+- CI: [Required CI run 29417416110](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29417416110)
 
 ## Sanitized owner instruction
 
@@ -53,10 +53,11 @@ Complete the backend, provider isolation, correctness, security, coverage, opera
 - Docker Linux/amd64 build: passed; tests and production build also passed inside the image
 - Full-history Gitleaks scan: 44 commits, no leaks
 - Trivy critical/unfixed container scan: zero critical findings
+- GitHub Required CI: passed, including quality, Supabase/RLS, Playwright, Linux/amd64 container/SBOM, and secret-scan jobs
+- Vercel Preview build: passed; protected runtime `/api/health` correctly exposed that live Notion/Supabase configuration is still absent, so the PR remains draft and unmerged pending BL-015 configuration
 - OpenAI network requests: zero
 
 ## Remaining milestone gates
 
-- Publish the BL-014 commit/PR and attach final CI URLs and exact coverage evidence.
 - Perform authenticated live Clerk/Supabase/Notion/observability/rollback checks in BL-015.
 - The paid live GPT-5.6 smoke test remains intentionally deferred.
