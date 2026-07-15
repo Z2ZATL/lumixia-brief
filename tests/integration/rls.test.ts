@@ -128,4 +128,19 @@ describe('Supabase owner + MFA RLS', () => {
       ]);
     });
   });
+
+  it('allows the anonymous readiness probe without exposing project data', async () => {
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local role anon');
+      const result = await tx`select public.readiness_check() as ready`;
+      expect(result[0]?.['ready']).toBe(true);
+    });
+
+    await expect(
+      sql.begin(async (tx) => {
+        await tx.unsafe('set local role anon');
+        await tx`select id from public.projects limit 1`;
+      }),
+    ).rejects.toThrow();
+  });
 });

@@ -74,7 +74,12 @@ export function createApp(dependencies = createDependencies()) {
 
   if (!config.authBypass && config.NODE_ENV !== 'test') {
     app.use(
-      clerkMiddleware(config.CLERK_SECRET_KEY ? { secretKey: config.CLERK_SECRET_KEY } : undefined),
+      clerkMiddleware({
+        ...(config.CLERK_SECRET_KEY ? { secretKey: config.CLERK_SECRET_KEY } : {}),
+        ...(config.VITE_CLERK_PUBLISHABLE_KEY
+          ? { publishableKey: config.VITE_CLERK_PUBLISHABLE_KEY }
+          : {}),
+      }),
     );
   }
 

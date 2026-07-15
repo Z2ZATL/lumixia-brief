@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Project } from '../../shared/contracts.js';
 import { createApp } from '../../server/app.js';
 import { loadConfig } from '../../server/config.js';
@@ -11,6 +11,8 @@ const headers = { 'x-test-user': 'user-a', 'x-test-aal': 'aal2', origin: 'http:/
 
 describe('Lumixia API', () => {
   let app: ReturnType<typeof createApp>;
+  afterEach(() => vi.restoreAllMocks());
+
   beforeEach(() => {
     const config = loadConfig({
       NODE_ENV: 'test',
@@ -66,6 +68,62 @@ describe('Lumixia API', () => {
 
     await request(publicApp).get('/api/health').expect(200);
     await request(publicApp).get('/api/ready').expect(200);
+  });
+
+  it('passes the configured publishable key to Clerk for signed-out requests', async () => {
+    const config = loadConfig({
+      NODE_ENV: 'development',
+      APP_ENV: 'preview',
+      APP_URL: 'https://brief.example.com',
+      ALLOWED_ORIGIN: 'https://brief.example.com',
+      VITE_CLERK_PUBLISHABLE_KEY: ['pk', 'test', 'Y2xlcmsuZXhhbXBsZS50ZXN0JA=='].join('_'),
+      CLERK_SECRET_KEY: ['sk', 'test', 'a'.repeat(32)].join('_'),
+      LOCAL_AUTH_BYPASS: 'false',
+      PROVIDER_MODE: 'mock',
+      DATA_MODE: 'memory',
+    });
+    const signedOutApp = createApp({
+      config,
+      store: new MemoryProjectStore(),
+      model: new MockModelProvider(),
+      notion: new MockNotionProvider(),
+    });
+
+    const response = await request(signedOutApp).get('/api/projects').expect(401);
+    expect(response.body.error.code).toBe('AUTH_REQUIRED');
+  });
+
+  it('probes database readiness through the public RLS-safe RPC', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('true', { status: 200 }));
+    const config = loadConfig({
+      NODE_ENV: 'development',
+      APP_ENV: 'preview',
+      APP_URL: 'https://brief.example.com',
+      ALLOWED_ORIGIN: 'https://brief.example.com',
+      LOCAL_AUTH_BYPASS: 'true',
+      PROVIDER_MODE: 'mock',
+      DATA_MODE: 'supabase',
+      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_PUBLISHABLE_KEY: 'test-key',
+    });
+    const readinessApp = createApp({
+      config,
+      store: new MemoryProjectStore(),
+      model: new MockModelProvider(),
+      notion: new MockNotionProvider(),
+    });
+
+    await request(readinessApp).get('/api/ready').expect(200, { ready: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.supabase.co/rest/v1/rpc/readiness_check',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { apikey: 'test-key', 'content-type': 'application/json' },
+        body: '{}',
+      }),
+    );
   });
 
   it('fails closed when the distributed rate-limit backend is unavailable', async () => {

@@ -24,8 +24,13 @@ export function createHealthRouter(config: AppConfig) {
 async function isDatabaseReady(config: AppConfig) {
   if (config.DATA_MODE !== 'supabase') return true;
   try {
-    const response = await fetch(`${config.SUPABASE_URL}/rest/v1/`, {
-      headers: { apikey: config.SUPABASE_PUBLISHABLE_KEY! },
+    const response = await fetch(`${config.SUPABASE_URL}/rest/v1/rpc/readiness_check`, {
+      method: 'POST',
+      headers: {
+        apikey: config.SUPABASE_PUBLISHABLE_KEY!,
+        'content-type': 'application/json',
+      },
+      body: '{}',
       signal: AbortSignal.timeout(3000),
     });
     return response.ok;
