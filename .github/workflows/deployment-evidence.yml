@@ -1,0 +1,50 @@
+name: Production deployment evidence
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  verify-production:
+    name: Verify production deployment SHA
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event.deployment.sha }}
+      - name: Verify health, readiness, and deployed SHA
+        shell: bash
+        env:
+          APP_ORIGIN: ${{ vars.PRODUCTION_APP_ORIGIN || 'https://brief.z2zs.space' }}
+          DEPLOYMENT_SHA: ${{ github.event.deployment.sha }}
+        run: |
+          mkdir -p artifacts
+          health_status="$(curl --retry 6 --retry-delay 5 --retry-all-errors --silent --show-error --output artifacts/health.json --write-out '%{http_code}' "${APP_ORIGIN}/api/health")"
+          ready_status="$(curl --retry 6 --retry-delay 5 --retry-all-errors --silent --show-error --output artifacts/ready.json --write-out '%{http_code}' "${APP_ORIGIN}/api/ready")"
+          test "$health_status" = "200"
+          test "$ready_status" = "200"
+          test "$(jq --raw-output '.sha' artifacts/health.json)" = "$DEPLOYMENT_SHA"
+          jq --null-input \
+            --arg sha "$DEPLOYMENT_SHA" \
+            --arg health "$health_status" \
+            --arg ready "$ready_status" \
+            '{sha: $sha, healthStatus: $health, readinessStatus: $ready}' \
+            > artifacts/production-deployment-evidence.json
+      - name: Upload sanitized deployment evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: production-deployment-${{ github.event.deployment.sha }}
+          path: |
+            artifacts/health.json
+            artifacts/ready.json
+            artifacts/production-deployment-evidence.json
+          if-no-files-found: error
+          retention-days: 30

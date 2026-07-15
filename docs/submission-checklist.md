@@ -8,6 +8,7 @@
 - [x] Core `/feedback` Session ID recorded
 - [x] Build Ledger and ADR structure
 - [ ] Live GPT-5.6 contract smoke test with synthetic data
+- [x] Disabled-model behavior, fake Responses-client contract, retry, refusal, schema, and no-network regression tests
 - [ ] Real Google/TOTP + backup-code smoke test
 - [ ] Real Notion OAuth/refresh/idempotent-sync smoke test
 - [ ] Seeded founder example in production

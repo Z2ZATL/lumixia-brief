@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyBriefSections } from '../../shared/contracts.js';
-import { LiveNotionProvider } from '../../server/providers/notion.js';
+import {
+  LiveNotionProvider,
+  MockNotionProvider,
+  type NotionProvider,
+} from '../../server/providers/notion.js';
 
 const provider = () =>
   new LiveNotionProvider('client', 'secret', 'https://app.example/callback', 's'.repeat(32));
@@ -30,7 +34,139 @@ function requestBody(init?: RequestInit): string {
   return init.body;
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe('Notion OAuth and page discovery', () => {
+  it('signs a short-lived owner-bound OAuth state', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const live = provider();
+    const url = new URL(live.authorizationUrl('owner-a'));
+    const state = url.searchParams.get('state');
+    expect(url.origin + url.pathname).toBe('https://api.notion.com/v1/oauth/authorize');
+    expect(url.searchParams.get('client_id')).toBe('client');
+    expect(url.searchParams.get('redirect_uri')).toBe('https://app.example/callback');
+    expect(state).toBeTruthy();
+    expect(() => live.verifyState(state!, 'owner-a')).not.toThrow();
+    expect(() => live.verifyState(state!, 'owner-b')).toThrow('INVALID_OAUTH_STATE');
+    expect(() => live.verifyState(`${state!.slice(0, -1)}x`, 'owner-a')).toThrow(
+      'INVALID_OAUTH_STATE',
+    );
+    expect(() => live.verifyState('malformed', 'owner-a')).toThrow('INVALID_OAUTH_STATE');
+    vi.spyOn(Date, 'now').mockReturnValue(1_000_000 + 10 * 60_000 + 1);
+    expect(() => live.verifyState(state!, 'owner-a')).toThrow('INVALID_OAUTH_STATE');
+  });
+
+  it('uses Basic authentication for code exchange and refresh-token rotation', async () => {
+    const requests: Array<{ url: URL; init?: RequestInit }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        requests.push({ url: requestUrl(input), ...(init ? { init } : {}) });
+        return jsonResponse({
+          access_token: 'access',
+          refresh_token: 'rotated-refresh',
+          workspace_id: 'workspace',
+        });
+      }),
+    );
+    const live = provider();
+    await live.exchangeCode('one-time-code');
+    await live.refreshToken('previous-refresh');
+    expect(requests).toHaveLength(2);
+    expect(requests[0]!.url.pathname).toBe('/v1/oauth/token');
+    expect(new Headers(requests[0]!.init?.headers).get('authorization')).toBe(
+      `Basic ${Buffer.from('client:secret').toString('base64')}`,
+    );
+    expect(JSON.parse(requestBody(requests[0]!.init))).toEqual({
+      grant_type: 'authorization_code',
+      code: 'one-time-code',
+      redirect_uri: 'https://app.example/callback',
+    });
+    expect(JSON.parse(requestBody(requests[1]!.init))).toEqual({
+      grant_type: 'refresh_token',
+      refresh_token: 'previous-refresh',
+    });
+  });
+
+  it('paginates parent pages, normalizes their titles, and stops at the last cursor', async () => {
+    const requestBodies: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(requestBody(init)) as Record<string, unknown>;
+        requestBodies.push(body);
+        if (!body['start_cursor']) {
+          return jsonResponse({
+            results: [
+              {
+                id: 'page-1',
+                properties: { Name: { type: 'title', title: [{ plain_text: 'Roadmap' }] } },
+              },
+            ],
+            has_more: true,
+            next_cursor: 'cursor-2',
+          });
+        }
+        return jsonResponse({ results: [{ id: 'page-2', properties: {} }], has_more: false });
+      }),
+    );
+    await expect(provider().listPages('access-token')).resolves.toEqual([
+      { id: 'page-1', title: 'Roadmap' },
+      { id: 'page-2', title: 'Untitled page' },
+    ]);
+    expect(requestBodies[1]).toMatchObject({ start_cursor: 'cursor-2', page_size: 50 });
+  });
+
+  it('propagates request cancellation without waiting for retry backoff', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('cancelled by request'));
+    const fetchMock = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      if (init?.signal?.aborted) throw init.signal.reason;
+      return jsonResponse({ results: [] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(provider().listPages('token', controller.signal)).rejects.toThrow(
+      'cancelled by request',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the mock integration idempotent per project', async () => {
+    const mock: NotionProvider = new MockNotionProvider();
+    expect(mock.authorizationUrl('owner')).toContain('mock-code');
+    expect(() => mock.verifyState('state', 'owner')).not.toThrow();
+    await expect(mock.exchangeCode('code')).resolves.toMatchObject({ access_token: 'mock-token' });
+    await expect(mock.refreshToken('refresh')).resolves.toMatchObject({
+      access_token: 'mock-token-2',
+    });
+    await expect(mock.listPages('token')).resolves.toHaveLength(2);
+    const first = await mock.syncBriefVersion({
+      accessToken: 'token',
+      parentId: 'parent',
+      existingPageId: null,
+      projectId: 'project',
+      title: 'Brief',
+      sections: emptyBriefSections,
+      version: 1,
+      contentHash: 'hash-1',
+    });
+    await expect(
+      mock.syncBriefVersion({
+        accessToken: 'token',
+        parentId: 'parent',
+        existingPageId: null,
+        projectId: 'project',
+        title: 'Brief revised',
+        sections: emptyBriefSections,
+        version: 2,
+        contentHash: 'hash-2',
+      }),
+    ).resolves.toBe(first);
+  });
+});
 
 describe('Notion brief synchronization', () => {
   it('preserves long text and appends blocks in batches of at most 100', async () => {

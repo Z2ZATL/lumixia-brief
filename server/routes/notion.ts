@@ -4,7 +4,16 @@ import { selectNotionParentInputSchema } from '../../shared/contracts.js';
 import type { AppConfig } from '../config.js';
 import { perUserRateLimit } from '../http.js';
 import { NotionService } from '../services/notion.js';
-import { asyncRoute, requestIdentity, validateBody } from './request.js';
+import { asyncRoute, projectId, requestIdentity, validateBody } from './request.js';
+
+const oauthCallbackQuerySchema = z
+  .object({
+    state: z.string().min(1).max(4000),
+    code: z.string().min(1).max(4000).optional(),
+    error: z.string().min(1).max(200).optional(),
+  })
+  .passthrough()
+  .refine((query) => Boolean(query.code) || Boolean(query.error));
 
 export function createNotionRouter(service: NotionService, config: AppConfig) {
   const router = Router();
@@ -26,9 +35,9 @@ export function createNotionRouter(service: NotionService, config: AppConfig) {
   router.get(
     '/notion/callback',
     asyncRoute(async (req, res) => {
-      const code = z.string().min(1).parse(req.query['code']);
-      const state = z.string().min(1).parse(req.query['state']);
-      res.redirect(await service.completeOAuth(requestIdentity(req), code, state));
+      const query = oauthCallbackQuerySchema.parse(req.query);
+      if (query.error) service.rejectOAuth(requestIdentity(req), query.state);
+      res.redirect(await service.completeOAuth(requestIdentity(req), query.code!, query.state));
     }),
   );
   router.delete(
@@ -45,7 +54,7 @@ export function createNotionRouter(service: NotionService, config: AppConfig) {
       const input = selectNotionParentInputSchema.parse(req.body);
       const project = await service.selectParent(
         requestIdentity(req),
-        String(req.params['projectId']),
+        projectId(req),
         input.parentId,
       );
       res.json({ project });
@@ -55,7 +64,7 @@ export function createNotionRouter(service: NotionService, config: AppConfig) {
     '/projects/:projectId/notion/sync',
     perUserRateLimit(config, 8, 60),
     asyncRoute(async (req, res) => {
-      const result = await service.sync(requestIdentity(req), String(req.params['projectId']));
+      const result = await service.sync(requestIdentity(req), projectId(req));
       res.status(result.httpStatus).json({
         project: result.project,
         pageId: result.pageId,

@@ -19,7 +19,8 @@ describe('Lumixia API', () => {
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
       LOCAL_AUTH_BYPASS: 'true',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
     });
     app = createApp({
@@ -51,12 +52,13 @@ describe('Lumixia API', () => {
   it('keeps public health routes independent from Clerk authentication', async () => {
     const config = loadConfig({
       NODE_ENV: 'development',
-      APP_ENV: 'preview',
+      APP_ENV: 'local',
       APP_URL: 'https://brief.example.com',
       ALLOWED_ORIGIN: 'https://brief.example.com',
       CLERK_SECRET_KEY: 'invalid-clerk-secret',
       LOCAL_AUTH_BYPASS: 'false',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
     });
     const publicApp = createApp({
@@ -73,13 +75,14 @@ describe('Lumixia API', () => {
   it('passes the configured publishable key to Clerk for signed-out requests', async () => {
     const config = loadConfig({
       NODE_ENV: 'development',
-      APP_ENV: 'preview',
+      APP_ENV: 'local',
       APP_URL: 'https://brief.example.com',
       ALLOWED_ORIGIN: 'https://brief.example.com',
       VITE_CLERK_PUBLISHABLE_KEY: ['pk', 'test', 'Y2xlcmsuZXhhbXBsZS50ZXN0JA=='].join('_'),
       CLERK_SECRET_KEY: ['sk', 'test', 'a'.repeat(32)].join('_'),
       LOCAL_AUTH_BYPASS: 'false',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
     });
     const signedOutApp = createApp({
@@ -99,11 +102,12 @@ describe('Lumixia API', () => {
       .mockResolvedValue(new Response('true', { status: 200 }));
     const config = loadConfig({
       NODE_ENV: 'development',
-      APP_ENV: 'preview',
+      APP_ENV: 'local',
       APP_URL: 'https://brief.example.com',
       ALLOWED_ORIGIN: 'https://brief.example.com',
       LOCAL_AUTH_BYPASS: 'true',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'supabase',
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_PUBLISHABLE_KEY: 'test-key',
@@ -129,11 +133,12 @@ describe('Lumixia API', () => {
   it('fails closed when the distributed rate-limit backend is unavailable', async () => {
     const config = loadConfig({
       NODE_ENV: 'development',
-      APP_ENV: 'preview',
+      APP_ENV: 'local',
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
       LOCAL_AUTH_BYPASS: 'true',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'supabase',
       SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_PUBLISHABLE_KEY: 'test-key',
@@ -154,7 +159,8 @@ describe('Lumixia API', () => {
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
       LOCAL_AUTH_BYPASS: 'true',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
     });
     const model = new MockModelProvider();
@@ -223,7 +229,8 @@ describe('Lumixia API', () => {
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
       LOCAL_AUTH_BYPASS: 'true',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
     });
     app = createApp({
@@ -327,7 +334,8 @@ describe('Lumixia API', () => {
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
       LOCAL_AUTH_BYPASS: 'true',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
     });
     const model = new MockModelProvider();
@@ -378,7 +386,8 @@ describe('Lumixia API', () => {
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
       LOCAL_AUTH_BYPASS: 'true',
-      PROVIDER_MODE: 'mock',
+      MODEL_PROVIDER_MODE: 'mock',
+      NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
     });
     class ExpiringNotionProvider extends MockNotionProvider {

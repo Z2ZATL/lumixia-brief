@@ -19,7 +19,8 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         LOCAL_AUTH_BYPASS: 'true',
-        PROVIDER_MODE: 'mock',
+        MODEL_PROVIDER_MODE: 'mock',
+        NOTION_PROVIDER_MODE: 'mock',
         DATA_MODE: 'memory',
         APP_URL: 'http://127.0.0.1:5173',
         ALLOWED_ORIGIN: 'http://127.0.0.1:5173',

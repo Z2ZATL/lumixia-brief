@@ -1,0 +1,227 @@
+import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+import postgres from 'postgres';
+import { dimensionKeys, type DimensionKey } from '../shared/domain.js';
+import { projectSchema, type Project } from '../shared/contracts.js';
+import { emptyAssessments } from '../server/domain/confidence.js';
+
+type SeedEnvironment = 'staging' | 'production';
+
+const dimensionQuestions: Record<DimensionKey, string> = {
+  problem: 'What problem should this project solve?',
+  audience: 'Who is the primary user?',
+  outcome: 'What outcome should the project create?',
+  scope: 'What belongs in the first usable release?',
+  constraints: 'Which constraints must the team respect?',
+  timeline: 'When must the first release be usable?',
+  risks: 'What could cause the project to fail?',
+  successCriteria: 'What observable result proves success?',
+};
+
+const dimensionAnswers: Record<DimensionKey, string> = {
+  problem: 'A founder needs to turn an ambiguous product idea into an implementation-ready brief.',
+  audience: 'The primary user is a founder preparing a scoped request for Codex and collaborators.',
+  outcome:
+    'The output is a reviewable brief that separates facts, assumptions, and human decisions.',
+  scope:
+    'The release includes an adaptive interview, confidence evidence, structured review, approval, and Notion sync.',
+  constraints:
+    'The demo must fit three minutes, protect user content, and never sync before approval.',
+  timeline:
+    'The competition-ready release must be usable before the Build Week submission deadline.',
+  risks:
+    'The main risks are vague scope, accidental data exposure, duplicate sync, and provider outages.',
+  successCriteria:
+    'A founder completes the path and syncs one approved brief without duplicate pages or console errors.',
+};
+
+export function deterministicUuid(value: string): string {
+  const bytes = createHash('sha256').update(value).digest().subarray(0, 16);
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+export function buildSyntheticFounderProject(ownerId: string, timestamp: string): Project {
+  const projectId = deterministicUuid(`lumixia-founder-example:${ownerId}`);
+  const answers = dimensionKeys.map((dimension, index) => {
+    const answerId = deterministicUuid(`${projectId}:answer:${dimension}`);
+    return {
+      id: answerId,
+      clientAnswerId: deterministicUuid(`${projectId}:client-answer:${dimension}`),
+      question: dimensionQuestions[dimension],
+      dimension,
+      text: dimensionAnswers[dimension],
+      status: 'processed' as const,
+      errorCode: null,
+      createdAt: timestamp,
+      processedAt: timestamp,
+      index,
+    };
+  });
+  const publicAnswers = answers.map(({ index: _index, ...answer }) => answer);
+  const assessments = dimensionKeys.map((dimension, index) => ({
+    dimension,
+    level: 'clear' as const,
+    rationale: 'Synthetic evidence explicitly covers this dimension for the operator demo.',
+    evidence: [{ answerId: answers[index]!.id, excerpt: dimensionAnswers[dimension] }],
+  }));
+  return projectSchema.parse({
+    id: projectId,
+    revision: 1,
+    ownerId,
+    title: '[Synthetic] Founder brief for Codex',
+    initialPrompt: '[Synthetic demo] Turn a founder idea into a safe, implementation-ready brief.',
+    locale: 'en',
+    workflowStatus: 'approved',
+    syncStatus: 'not_synced',
+    answers: publicAnswers,
+    analysis: {
+      facts: [
+        { statement: 'This is operator-created synthetic demo data.', answerIds: [answers[0]!.id] },
+      ],
+      assumptions: [],
+      contradictions: [],
+      dimensionAssessments: assessments,
+      nextQuestion: null,
+      shouldStop: true,
+      stopReason: 'ready',
+    },
+    initialAssessments: emptyAssessments(),
+    currentQuestion: null,
+    briefVersions: [
+      {
+        id: deterministicUuid(`${projectId}:brief:1`),
+        projectId,
+        version: 1,
+        title: '[Synthetic] Lumixia Brief founder demo',
+        sections: syntheticBriefSections(),
+        status: 'approved',
+        clarificationLabel: 'ready',
+        alignment: {
+          initialScore: 13,
+          finalScore: 100,
+          delta: 87,
+          assumptionsSurfaced: 3,
+          contradictionsResolved: 1,
+          humanDecisionsRemaining: 1,
+        },
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        approvedAt: timestamp,
+        approvedBy: ownerId,
+      },
+    ],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    notionParentId: null,
+    notionPageId: null,
+    lastSyncError: null,
+  });
+}
+
+function syntheticBriefSections() {
+  return {
+    summary:
+      'Operator-created synthetic example for demonstrating the approved, non-AI backend path. It was not generated by GPT.',
+    problemStatement:
+      'Ambiguous project ideas cause avoidable rework when implementation starts before alignment.',
+    goals: [
+      'Collect decision-ready context before implementation.',
+      'Make uncertainty visible and reviewable.',
+    ],
+    successCriteria: [
+      'Complete the demo path in under three minutes.',
+      'Create or update exactly one Notion page per project.',
+    ],
+    audience: [
+      'Founder preparing a scoped brief for Codex.',
+      'Product collaborators reviewing assumptions.',
+    ],
+    deliverables: [
+      'Adaptive interview record.',
+      'Evidence-backed structured brief.',
+      'Approved Notion page.',
+    ],
+    mustHave: [
+      'Human approval before sync.',
+      'Eight-dimensional confidence evidence.',
+      'Idempotent retries.',
+    ],
+    niceToHave: ['English and Thai interface support.'],
+    nonGoals: [
+      'This synthetic record does not claim to be generated by GPT.',
+      'No marketplace or background tracking.',
+    ],
+    constraints: ['No user content in logs or monitoring.', 'Demo path under three minutes.'],
+    timeline: ['Competition-ready before the Build Week deadline.'],
+    risks: [
+      'Provider outage.',
+      'Duplicate sync after timeout.',
+      'Insufficient second-factor enforcement.',
+    ],
+    assumptions: ['A founder can authorize one Notion parent page.'],
+    openQuestions: [
+      'Which production OpenAI billing account will be used for the final smoke test?',
+    ],
+    decisionsRequiringApproval: [
+      'Enable the live model only after billing and release gates are ready.',
+    ],
+    nextSteps: [
+      'Verify Notion OAuth and idempotent sync.',
+      'Run one synthetic live model smoke test after credit is available.',
+    ],
+  };
+}
+
+export function parseSeedEnvironment(args: string[]): SeedEnvironment {
+  const value = args.find((argument) => argument.startsWith('--environment='))?.split('=')[1];
+  if (value !== 'staging' && value !== 'production') {
+    throw new Error('SEED_ENVIRONMENT_REQUIRED');
+  }
+  if (value === 'production' && !args.includes('--confirm-production')) {
+    throw new Error('PRODUCTION_CONFIRMATION_REQUIRED');
+  }
+  return value;
+}
+
+async function seed(): Promise<void> {
+  const environment = parseSeedEnvironment(process.argv.slice(2));
+  const ownerId = process.env['LUMIXIA_SEED_OWNER_ID'];
+  const databaseUrl = process.env['SUPABASE_DB_URL'];
+  if (!ownerId || !databaseUrl) throw new Error('SEED_CREDENTIALS_REQUIRED');
+  const project = buildSyntheticFounderProject(ownerId, new Date().toISOString());
+  const sql = postgres(databaseUrl, { max: 1, prepare: false, ssl: 'require' });
+  try {
+    const inserted = await sql`
+      insert into public.projects (
+        id, owner_id, title, workflow_status, sync_status, revision, document, created_at, updated_at
+      ) values (
+        ${project.id}, ${project.ownerId}, ${project.title}, ${project.workflowStatus},
+        ${project.syncStatus}, ${project.revision}, ${sql.json(project)}, ${project.createdAt}, ${project.updatedAt}
+      )
+      on conflict (id) do nothing
+      returning id
+    `;
+    if (!inserted.length) {
+      const existing = await sql`select owner_id from public.projects where id = ${project.id}`;
+      if (existing[0]?.['owner_id'] !== ownerId) throw new Error('SEED_OWNER_CONFLICT');
+    }
+    process.stdout.write(
+      `${JSON.stringify({ ok: true, environment, result: inserted.length ? 'created' : 'unchanged' })}\n`,
+    );
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
+const entrypoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : '';
+if (import.meta.url === entrypoint) {
+  void seed().catch((error: unknown) => {
+    const code =
+      error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'SEED_FAILED';
+    process.stderr.write(`${JSON.stringify({ ok: false, code })}\n`);
+    process.exitCode = 1;
+  });
+}

@@ -6,6 +6,11 @@ import {
   isReadyToBrief,
   lowestPriorityDimension,
 } from '../../server/domain/confidence.js';
+import {
+  chooseNextQuestion,
+  enforceStopRules,
+  initialQuestion,
+} from '../../server/domain/interview.js';
 
 function withLevels(levels: DimensionAssessment['level'][]): DimensionAssessment[] {
   return emptyAssessments().map((item, index) => ({ ...item, level: levels[index] ?? 'missing' }));
@@ -21,6 +26,10 @@ function analysis(assessments: DimensionAssessment[]): InterviewAnalysis {
     shouldStop: false,
     stopReason: 'continue',
   };
+}
+
+function allClearLevels(): DimensionAssessment['level'][] {
+  return Array.from({ length: 8 }, () => 'clear' as const);
 }
 
 describe('confidence rubric', () => {
@@ -72,5 +81,62 @@ describe('confidence rubric', () => {
       'clear',
     ]);
     expect(lowestPriorityDimension(assessments)).toBe('audience');
+  });
+
+  it('provides localized initial questions and resolves blocking contradictions first', () => {
+    expect(initialQuestion('en')).toMatchObject({ dimension: 'problem' });
+    expect(initialQuestion('th')).toMatchObject({ dimension: 'problem' });
+    const state = analysis(withLevels(allClearLevels().map(() => 'partial')));
+    state.contradictions.push({
+      id: 'conflict',
+      statementA: 'Launch this week',
+      statementB: 'Research for one month',
+      answerIds: ['answer-a', 'answer-b'],
+      blocking: true,
+      resolved: false,
+      resolution: null,
+    });
+    expect(chooseNextQuestion(state, 5)).toMatchObject({
+      dimension: 'scope',
+      rationale: 'A blocking contradiction must be resolved before adding more scope.',
+    });
+  });
+
+  it('uses the model question only when it targets the highest-priority gap', () => {
+    const state = analysis(withLevels(allClearLevels()));
+    state.dimensionAssessments[1]!.level = 'missing';
+    state.nextQuestion = {
+      text: 'Which founders are primary?',
+      dimension: 'audience',
+      rationale: 'Clarify the audience.',
+    };
+    expect(chooseNextQuestion(state, 3)).toBe(state.nextQuestion);
+    state.nextQuestion = {
+      text: 'What is the timeline?',
+      dimension: 'timeline',
+      rationale: 'Clarify timing.',
+    };
+    expect(chooseNextQuestion(state, 3)).toMatchObject({ dimension: 'audience' });
+  });
+
+  it('enforces ready, maximum-question, and continue stop rules', () => {
+    const ready = analysis(withLevels(allClearLevels()));
+    expect(enforceStopRules(ready, 5)).toMatchObject({
+      shouldStop: true,
+      stopReason: 'ready',
+      nextQuestion: null,
+    });
+    const unclear = analysis(emptyAssessments());
+    expect(enforceStopRules(unclear, 12)).toMatchObject({
+      shouldStop: true,
+      stopReason: 'max_questions',
+      nextQuestion: null,
+    });
+    expect(enforceStopRules(unclear, 2)).toMatchObject({
+      shouldStop: false,
+      stopReason: 'continue',
+      nextQuestion: { dimension: 'problem' },
+    });
+    expect(chooseNextQuestion(unclear, 12)).toBeNull();
   });
 });

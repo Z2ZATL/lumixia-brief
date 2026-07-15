@@ -3,7 +3,7 @@ import type { Express } from 'express';
 import { sanitizeTelemetryText } from '../../shared/telemetry.js';
 import type { AppConfig } from '../config.js';
 
-function scrubEvent<T extends Sentry.Event>(event: T): T {
+export function scrubSentryEvent<T extends Sentry.Event>(event: T): T {
   delete event.request?.data;
   delete event.request?.cookies;
   delete event.request?.headers;
@@ -14,19 +14,21 @@ function scrubEvent<T extends Sentry.Event>(event: T): T {
   return event;
 }
 
+export function scrubSentryBreadcrumb(breadcrumb: Sentry.Breadcrumb) {
+  delete breadcrumb.data;
+  if (breadcrumb.message) breadcrumb.message = sanitizeTelemetryText(breadcrumb.message);
+  return breadcrumb;
+}
+
 export function initializeSentry(config: AppConfig) {
   if (!config.SENTRY_DSN) return;
   Sentry.init({
     dsn: config.SENTRY_DSN,
     sendDefaultPii: false,
     tracesSampleRate: config.APP_ENV === 'production' ? 0.15 : 1,
-    beforeSend: scrubEvent,
-    beforeSendTransaction: scrubEvent,
-    beforeBreadcrumb(breadcrumb) {
-      delete breadcrumb.data;
-      if (breadcrumb.message) breadcrumb.message = sanitizeTelemetryText(breadcrumb.message);
-      return breadcrumb;
-    },
+    beforeSend: scrubSentryEvent,
+    beforeSendTransaction: scrubSentryEvent,
+    beforeBreadcrumb: scrubSentryBreadcrumb,
   });
 }
 

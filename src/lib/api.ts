@@ -1,4 +1,4 @@
-import type { DimensionKey, Project } from '../../shared/contracts';
+import type { CapabilityStatus, DimensionKey, Project } from '../../shared/contracts';
 
 export class ApiError extends Error {
   constructor(
@@ -95,4 +95,9 @@ export const projectApi = {
       status: 'syncing' | 'synced';
       idempotent: boolean;
     }>(`/projects/${id}/notion/sync`, { method: 'POST' }),
+};
+
+export const systemApi = {
+  capabilities: (signal?: AbortSignal) =>
+    api<CapabilityStatus>('/capabilities', signal ? { signal } : {}),
 };

@@ -177,3 +177,35 @@ jobs:
           test "${{ needs.e2e.result }}" = "success"
           test "${{ needs.container.result }}" = "success"
           test "${{ needs.secret-scan.result }}" = "success"
+
+  production-migration:
+    name: Production migration gate
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      vars.PRODUCTION_RELEASE_ENABLED == 'true'
+    needs: [ci-success]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.16.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify the migration source SHA
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+      - name: Apply forward-only production migrations
+        shell: bash
+        run: |
+          npx supabase link --project-ref "$SUPABASE_PROJECT_REF"
+          npx supabase db push --include-all
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}

@@ -26,9 +26,9 @@ export interface NotionPageOption {
 export interface NotionProvider {
   authorizationUrl(ownerId: string): string;
   verifyState(state: string, ownerId: string): void;
-  exchangeCode(code: string): Promise<NotionTokenResponse>;
-  refreshToken(refreshToken: string): Promise<NotionTokenResponse>;
-  listPages(accessToken: string): Promise<NotionPageOption[]>;
+  exchangeCode(code: string, signal?: AbortSignal): Promise<NotionTokenResponse>;
+  refreshToken(refreshToken: string, signal?: AbortSignal): Promise<NotionTokenResponse>;
+  listPages(accessToken: string, signal?: AbortSignal): Promise<NotionPageOption[]>;
   syncBriefVersion(input: {
     accessToken: string;
     parentId: string;
@@ -38,6 +38,7 @@ export interface NotionProvider {
     sections: BriefSections;
     version: number;
     contentHash: string;
+    signal?: AbortSignal;
   }): Promise<string>;
 }
 
@@ -80,42 +81,50 @@ export class LiveNotionProvider implements NotionProvider {
     }
   }
 
-  exchangeCode(code: string): Promise<NotionTokenResponse> {
-    return this.tokenRequest({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: this.redirectUri,
-    });
+  exchangeCode(code: string, signal?: AbortSignal): Promise<NotionTokenResponse> {
+    return this.tokenRequest(
+      {
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: this.redirectUri,
+      },
+      signal,
+    );
   }
 
-  refreshToken(refreshToken: string): Promise<NotionTokenResponse> {
-    return this.tokenRequest({ grant_type: 'refresh_token', refresh_token: refreshToken });
+  refreshToken(refreshToken: string, signal?: AbortSignal): Promise<NotionTokenResponse> {
+    return this.tokenRequest({ grant_type: 'refresh_token', refresh_token: refreshToken }, signal);
   }
 
-  async listPages(accessToken: string): Promise<NotionPageOption[]> {
-    const response = (await this.request('/search', accessToken, {
-      method: 'POST',
-      body: JSON.stringify({
-        filter: { property: 'object', value: 'page' },
-        sort: { direction: 'descending', timestamp: 'last_edited_time' },
-        page_size: 50,
-      }),
-    })) as {
-      results: Array<{
-        id: string;
-        properties?: Record<string, { type?: string; title?: Array<{ plain_text?: string }> }>;
-      }>;
-    };
-    return response.results.map((page) => {
-      const titleProperty = Object.values(page.properties ?? {}).find(
-        (property) => property.type === 'title',
-      );
-      return {
-        id: page.id,
-        title:
-          titleProperty?.title?.map((item) => item.plain_text ?? '').join('') || 'Untitled page',
+  async listPages(accessToken: string, signal?: AbortSignal): Promise<NotionPageOption[]> {
+    const pages: NotionPageOption[] = [];
+    let cursor: string | null = null;
+    do {
+      const response = (await this.request(
+        '/search',
+        accessToken,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            filter: { property: 'object', value: 'page' },
+            sort: { direction: 'descending', timestamp: 'last_edited_time' },
+            page_size: 50,
+            ...(cursor ? { start_cursor: cursor } : {}),
+          }),
+        },
+        signal,
+      )) as {
+        results: Array<{
+          id: string;
+          properties?: Record<string, { type?: string; title?: Array<{ plain_text?: string }> }>;
+        }>;
+        has_more?: boolean;
+        next_cursor?: string | null;
       };
-    });
+      pages.push(...response.results.map(toPageOption));
+      cursor = response.has_more && pages.length < 200 ? (response.next_cursor ?? null) : null;
+    } while (cursor);
+    return pages;
   }
 
   async syncBriefVersion(input: {
@@ -127,58 +136,97 @@ export class LiveNotionProvider implements NotionProvider {
     sections: BriefSections;
     version: number;
     contentHash: string;
+    signal?: AbortSignal;
   }): Promise<string> {
     const projectMarker = `LB-${input.projectId}`;
     const versionMarker = `${projectMarker}:v${input.version}:${input.contentHash}`;
     const existingPageId =
-      input.existingPageId ?? (await this.findPageByMarker(input.accessToken, projectMarker));
+      input.existingPageId ??
+      (await this.findPageByMarker(input.accessToken, projectMarker, input.signal));
     const pageId =
-      existingPageId ?? (await this.createPage(input.accessToken, input.parentId, projectMarker));
+      existingPageId ??
+      (await this.createPage(input.accessToken, input.parentId, projectMarker, input.signal));
     await this.updatePageTitle(
       input.accessToken,
       pageId,
       `${input.title} — v${input.version} [${projectMarker}]`,
+      input.signal,
     );
-    if (!(await this.hasVersionMarker(input.accessToken, pageId, versionMarker))) {
+    if (!(await this.hasVersionMarker(input.accessToken, pageId, versionMarker, input.signal))) {
       await this.appendBlocks(
         input.accessToken,
         pageId,
         versionBlocks(input.version, versionMarker, input.sections),
+        input.signal,
       );
     }
     return pageId;
   }
 
-  private async findPageByMarker(token: string, marker: string): Promise<string | null> {
-    const result = (await this.request('/search', token, {
-      method: 'POST',
-      body: JSON.stringify({ query: marker, page_size: 20 }),
-    })) as { results?: Array<{ id?: string; properties?: unknown }> };
+  private async findPageByMarker(
+    token: string,
+    marker: string,
+    signal?: AbortSignal,
+  ): Promise<string | null> {
+    const result = (await this.request(
+      '/search',
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({ query: marker, page_size: 20 }),
+      },
+      signal,
+    )) as { results?: Array<{ id?: string; properties?: unknown }> };
     const page = result.results?.find((item) => JSON.stringify(item.properties).includes(marker));
     return page?.id ?? null;
   }
 
-  private async createPage(token: string, parentId: string, marker: string): Promise<string> {
-    const created = (await this.request('/pages', token, {
-      method: 'POST',
-      body: JSON.stringify({
-        parent: { type: 'page_id', page_id: parentId },
-        properties: { title: { type: 'title', title: richTextArray(marker) } },
-      }),
-    })) as { id: string };
+  private async createPage(
+    token: string,
+    parentId: string,
+    marker: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const created = (await this.request(
+      '/pages',
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          parent: { type: 'page_id', page_id: parentId },
+          properties: { title: { type: 'title', title: richTextArray(marker) } },
+        }),
+      },
+      signal,
+    )) as { id: string };
     return created.id;
   }
 
-  private updatePageTitle(token: string, pageId: string, title: string): Promise<unknown> {
-    return this.request(`/pages/${pageId}`, token, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        properties: { title: { type: 'title', title: richTextArray(title) } },
-      }),
-    });
+  private updatePageTitle(
+    token: string,
+    pageId: string,
+    title: string,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    return this.request(
+      `/pages/${pageId}`,
+      token,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          properties: { title: { type: 'title', title: richTextArray(title) } },
+        }),
+      },
+      signal,
+    );
   }
 
-  private async hasVersionMarker(token: string, pageId: string, marker: string) {
+  private async hasVersionMarker(
+    token: string,
+    pageId: string,
+    marker: string,
+    signal?: AbortSignal,
+  ) {
     let cursor: string | null = null;
     do {
       const suffix = cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : '';
@@ -186,6 +234,7 @@ export class LiveNotionProvider implements NotionProvider {
         `/blocks/${pageId}/children?page_size=100${suffix}`,
         token,
         { method: 'GET' },
+        signal,
       )) as { results?: unknown[]; has_more?: boolean; next_cursor?: string | null };
       if (response.results?.some((block) => JSON.stringify(block).includes(marker))) return true;
       cursor = response.has_more ? (response.next_cursor ?? null) : null;
@@ -193,12 +242,22 @@ export class LiveNotionProvider implements NotionProvider {
     return false;
   }
 
-  private async appendBlocks(token: string, pageId: string, blocks: NotionBlock[]) {
+  private async appendBlocks(
+    token: string,
+    pageId: string,
+    blocks: NotionBlock[],
+    signal?: AbortSignal,
+  ) {
     for (let index = 0; index < blocks.length; index += 100) {
-      await this.request(`/blocks/${pageId}/children`, token, {
-        method: 'PATCH',
-        body: JSON.stringify({ children: blocks.slice(index, index + 100) }),
-      });
+      await this.request(
+        `/blocks/${pageId}/children`,
+        token,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ children: blocks.slice(index, index + 100) }),
+        },
+        signal,
+      );
     }
   }
 
@@ -211,43 +270,68 @@ export class LiveNotionProvider implements NotionProvider {
     return createHmac('sha256', this.stateSecret).update(payload).digest();
   }
 
-  private tokenRequest(body: Record<string, string>): Promise<NotionTokenResponse> {
+  private tokenRequest(
+    body: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<NotionTokenResponse> {
     const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-    return this.request('/oauth/token', '', {
-      method: 'POST',
-      headers: { Authorization: `Basic ${basic}` },
-      body: JSON.stringify(body),
-    }) as Promise<NotionTokenResponse>;
+    return this.request(
+      '/oauth/token',
+      '',
+      {
+        method: 'POST',
+        headers: { Authorization: `Basic ${basic}` },
+        body: JSON.stringify(body),
+      },
+      signal,
+    ) as Promise<NotionTokenResponse>;
   }
 
-  private async request(path: string, token: string, init: RequestInit): Promise<unknown> {
+  private async request(
+    path: string,
+    token: string,
+    init: RequestInit,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    if (signal?.aborted) throw abortError(signal);
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const response = await fetch(`https://api.notion.com/v1${path}`, {
-          ...init,
-          signal: AbortSignal.timeout(15_000),
-          headers: {
-            'Content-Type': 'application/json',
-            'Notion-Version': NOTION_VERSION,
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...init.headers,
-          },
-        });
-        if (response.ok) return response.status === 204 ? null : response.json();
-        const error = new NotionApiError(response.status, `NOTION_${response.status}`);
-        lastError = error;
-        if (attempt === 2 || (response.status !== 429 && response.status < 500)) throw error;
-        const retryAfter = Number(response.headers.get('retry-after') ?? 0);
-        await delay(retryAfter > 0 ? retryAfter * 1000 : 250 * 2 ** attempt);
+        return await this.requestOnce(path, token, init, signal);
       } catch (error) {
+        if (signal?.aborted) throw abortError(signal);
         lastError = error;
         const ambiguousCreate = path === '/pages' && init.method === 'POST';
-        if (error instanceof NotionApiError || ambiguousCreate || attempt === 2) throw error;
-        await delay(250 * 2 ** attempt);
+        if (!shouldRetry(error, attempt, ambiguousCreate)) throw error;
+        await delay(retryDelay(error, attempt), signal);
       }
     }
-    throw lastError;
+    throw lastError instanceof Error ? lastError : new Error('NOTION_REQUEST_FAILED');
+  }
+
+  private async requestOnce(
+    path: string,
+    token: string,
+    init: RequestInit,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    const response = await fetch(`https://api.notion.com/v1${path}`, {
+      ...init,
+      signal: combinedSignal(signal, AbortSignal.timeout(15_000)),
+      headers: {
+        'Content-Type': 'application/json',
+        'Notion-Version': NOTION_VERSION,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
+      },
+    });
+    if (response.ok) return response.status === 204 ? null : response.json();
+    const retryAfter = Number(response.headers.get('retry-after') ?? 0);
+    throw new NotionApiError(
+      response.status,
+      `NOTION_${response.status}`,
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : null,
+    );
   }
 }
 
@@ -255,6 +339,7 @@ export class NotionApiError extends Error {
   constructor(
     readonly status: number,
     code: string,
+    readonly retryAfterMs: number | null = null,
   ) {
     super(code);
     this.name = 'NotionApiError';
@@ -305,6 +390,19 @@ export class MockNotionProvider implements NotionProvider {
 }
 
 type NotionBlock = Record<string, unknown>;
+
+function toPageOption(page: {
+  id: string;
+  properties?: Record<string, { type?: string; title?: Array<{ plain_text?: string }> }>;
+}): NotionPageOption {
+  const titleProperty = Object.values(page.properties ?? {}).find(
+    (property) => property.type === 'title',
+  );
+  return {
+    id: page.id,
+    title: titleProperty?.title?.map((item) => item.plain_text ?? '').join('') || 'Untitled page',
+  };
+}
 
 function richText(content: string) {
   return { type: 'text', text: { content } };
@@ -384,6 +482,43 @@ function notionBlocks(sections: BriefSections): NotionBlock[] {
   });
 }
 
-function delay(milliseconds: number) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function combinedSignal(...signals: Array<AbortSignal | undefined>) {
+  const active = signals.filter((signal): signal is AbortSignal => Boolean(signal));
+  if (!active.length) return new AbortController().signal;
+  return active.length === 1 ? active[0]! : AbortSignal.any(active);
+}
+
+function delay(milliseconds: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortError(signal));
+      return;
+    }
+    const timer = setTimeout(resolve, milliseconds);
+    timer.unref();
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        reject(abortError(signal));
+      },
+      { once: true },
+    );
+  });
+}
+
+function shouldRetry(error: unknown, attempt: number, ambiguousCreate: boolean): boolean {
+  if (attempt >= 2) return false;
+  if (error instanceof NotionApiError) return error.status === 429 || error.status >= 500;
+  return !ambiguousCreate;
+}
+
+function retryDelay(error: unknown, attempt: number): number {
+  return error instanceof NotionApiError && error.retryAfterMs
+    ? error.retryAfterMs
+    : 250 * 2 ** attempt;
+}
+
+function abortError(signal: AbortSignal): Error {
+  return signal.reason instanceof Error ? signal.reason : new Error('REQUEST_ABORTED');
 }

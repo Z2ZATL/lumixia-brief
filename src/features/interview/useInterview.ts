@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { DimensionKey, Project } from '../../../shared/contracts';
 import type { Translator } from '../brief/meta';
-import { ApiError, projectApi } from '../../lib/api';
+import { ApiError, projectApi, systemApi } from '../../lib/api';
 
 export interface PendingAnswer {
   clientAnswerId: string;
@@ -16,6 +16,7 @@ export interface InterviewSession {
   answer: string;
   busy: boolean;
   error: string;
+  modelAvailable: boolean;
   pendingAnswer: MutableRefObject<PendingAnswer | null>;
   setProject: (project: Project) => void;
   setAnswer: (answer: string) => void;
@@ -28,22 +29,40 @@ export function useInterviewSession(id: string): InterviewSession {
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [modelAvailable, setModelAvailable] = useState(true);
   const pendingAnswer = useRef<PendingAnswer | null>(null);
   useEffect(() => {
-    let active = true;
-    projectApi
-      .get(id)
-      .then(({ project }) => {
-        if (active) setProject(project);
-      })
-      .catch((caught: Error) => {
-        if (active) setError(caught.message);
-      });
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (controller.signal.aborted) return;
+      void Promise.all([
+        projectApi.get(id, controller.signal),
+        systemApi.capabilities(controller.signal),
+      ])
+        .then(([{ project }, capabilities]) => {
+          setProject(project);
+          setModelAvailable(capabilities.model.available);
+        })
+        .catch((caught: Error) => {
+          if (!controller.signal.aborted) setError(caught.message);
+        });
+    });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [id]);
-  return { project, answer, busy, error, pendingAnswer, setProject, setAnswer, setBusy, setError };
+  return {
+    project,
+    answer,
+    busy,
+    error,
+    modelAvailable,
+    pendingAnswer,
+    setProject,
+    setAnswer,
+    setBusy,
+    setError,
+  };
 }
 
 export function prepareSubmission(
@@ -74,6 +93,9 @@ export function recoveryOutcome(project: Project, submission: PendingAnswer, err
 }
 
 function requestError(caught: unknown, t: Translator) {
+  if (caught instanceof ApiError && caught.code === 'MODEL_NOT_CONFIGURED') {
+    return t('modelNotConfigured');
+  }
   if (caught instanceof ApiError && caught.code === 'MODEL_UNAVAILABLE') {
     return `${caught.message} ${t('retry')}`;
   }
@@ -156,7 +178,7 @@ export async function generateInterviewBrief(
     await projectApi.generateBrief(session.project.id);
     void navigate(`/projects/${session.project.id}/brief`);
   } catch (caught) {
-    session.setError(caught instanceof Error ? caught.message : t('generateFailed'));
+    session.setError(requestError(caught, t));
     session.setBusy(false);
   }
 }

@@ -14,7 +14,7 @@ export class ProjectService {
   constructor(private readonly store: ProjectStore) {}
 
   list(identity: RequestIdentity) {
-    return this.store.listProjects(identity.ownerId, identity.token);
+    return this.store.listProjects(identity.ownerId, identity.token, identity.signal);
   }
 
   get(identity: RequestIdentity, projectId: string) {
@@ -52,11 +52,16 @@ export class ProjectService {
       notionPageId: null,
       lastSyncError: null,
     };
-    return this.store.createProject(projectSchema.parse(project), identity.token);
+    return this.store.createProject(projectSchema.parse(project), identity.token, identity.signal);
   }
 
   async delete(identity: RequestIdentity, projectId: string) {
-    const deleted = await this.store.deleteProject(identity.ownerId, projectId, identity.token);
+    const deleted = await this.store.deleteProject(
+      identity.ownerId,
+      projectId,
+      identity.token,
+      identity.signal,
+    );
     if (!deleted) throw new HttpError(404, 'PROJECT_NOT_FOUND', 'Project not found.');
   }
 }

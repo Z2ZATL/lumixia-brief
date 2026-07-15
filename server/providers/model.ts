@@ -12,8 +12,25 @@ import {
 import { emptyAssessments } from '../domain/confidence.js';
 
 export interface ModelProvider {
-  analyzeInterview(project: Project): Promise<InterviewAnalysis>;
-  generateBrief(project: Project): Promise<GeneratedBrief>;
+  analyzeInterview(project: Project, signal?: AbortSignal): Promise<InterviewAnalysis>;
+  generateBrief(project: Project, signal?: AbortSignal): Promise<GeneratedBrief>;
+}
+
+export interface ModelResponseClient {
+  parse(
+    input: Parameters<OpenAI['responses']['parse']>[0],
+    options?: { signal?: AbortSignal },
+  ): Promise<{ output_parsed: unknown }>;
+}
+
+export type ModelErrorCode =
+  'MODEL_INVALID_RESPONSE' | 'MODEL_NOT_CONFIGURED' | 'MODEL_UNAVAILABLE';
+
+export class ModelProviderError extends Error {
+  constructor(readonly code: ModelErrorCode) {
+    super(code);
+    this.name = 'ModelProviderError';
+  }
 }
 
 const INTERVIEW_SYSTEM = `You are Lumixia Brief's alignment analyst. Your job is not to rush into generating work. Separate verified facts from assumptions, expose contradictions, and identify decisions that still require a human.
@@ -25,49 +42,61 @@ Choose only one next question. Priority is: blocking contradiction, essential ga
 const BRIEF_SYSTEM = `You are Lumixia Brief's project editor. Produce a decision-ready structured project brief using only the supplied project state. Preserve uncertainty: assumptions must remain assumptions, unresolved items go to openQuestions, and choices needing a human go to decisionsRequiringApproval. Do not fabricate dates, budgets, users, metrics, features, or technical constraints. Keep the brief concise enough to review on one page while retaining actionable detail.`;
 
 export class OpenAIModelProvider implements ModelProvider {
-  private readonly client: OpenAI;
+  private readonly responses: ModelResponseClient;
 
   constructor(
     apiKey: string,
     private readonly model = 'gpt-5.6',
+    responses?: ModelResponseClient,
   ) {
-    this.client = new OpenAI({ apiKey, maxRetries: 0, timeout: 30_000 });
+    const client = responses ? null : new OpenAI({ apiKey, maxRetries: 0, timeout: 30_000 });
+    this.responses =
+      responses ??
+      ({
+        parse: (input, options) => client!.responses.parse(input, options),
+      } satisfies ModelResponseClient);
   }
 
-  async analyzeInterview(project: Project): Promise<InterviewAnalysis> {
+  async analyzeInterview(project: Project, signal?: AbortSignal): Promise<InterviewAnalysis> {
     const input = this.modelInput(project);
-    return this.withRetry(async () => {
-      const response = await this.client.responses.parse({
-        model: this.model,
-        store: false,
-        reasoning: { effort: 'low' },
-        input: [
-          { role: 'system', content: INTERVIEW_SYSTEM },
-          { role: 'user', content: JSON.stringify(input) },
-        ],
-        text: { format: zodTextFormat(interviewAnalysisSchema, 'interview_analysis') },
-      });
-      if (!response.output_parsed) throw new ModelContractError('MODEL_REFUSAL_OR_EMPTY_OUTPUT');
-      return interviewAnalysisSchema.parse(response.output_parsed);
-    });
+    return this.execute(
+      () =>
+        this.responses.parse(
+          {
+            model: this.model,
+            store: false,
+            reasoning: { effort: 'low' },
+            input: [
+              { role: 'system', content: INTERVIEW_SYSTEM },
+              { role: 'user', content: JSON.stringify(input) },
+            ],
+            text: { format: zodTextFormat(interviewAnalysisSchema, 'interview_analysis') },
+          },
+          signal ? { signal } : undefined,
+        ),
+      interviewAnalysisSchema,
+    );
   }
 
-  async generateBrief(project: Project): Promise<GeneratedBrief> {
+  async generateBrief(project: Project, signal?: AbortSignal): Promise<GeneratedBrief> {
     const input = this.modelInput(project);
-    return this.withRetry(async () => {
-      const response = await this.client.responses.parse({
-        model: this.model,
-        store: false,
-        reasoning: { effort: 'medium' },
-        input: [
-          { role: 'system', content: BRIEF_SYSTEM },
-          { role: 'user', content: JSON.stringify(input) },
-        ],
-        text: { format: zodTextFormat(generatedBriefSchema, 'generated_brief') },
-      });
-      if (!response.output_parsed) throw new ModelContractError('MODEL_REFUSAL_OR_EMPTY_OUTPUT');
-      return generatedBriefSchema.parse(response.output_parsed);
-    });
+    return this.execute(
+      () =>
+        this.responses.parse(
+          {
+            model: this.model,
+            store: false,
+            reasoning: { effort: 'medium' },
+            input: [
+              { role: 'system', content: BRIEF_SYSTEM },
+              { role: 'user', content: JSON.stringify(input) },
+            ],
+            text: { format: zodTextFormat(generatedBriefSchema, 'generated_brief') },
+          },
+          signal ? { signal } : undefined,
+        ),
+      generatedBriefSchema,
+    );
   }
 
   private modelInput(project: Project) {
@@ -84,6 +113,21 @@ export class OpenAIModelProvider implements ModelProvider {
     };
   }
 
+  private async execute<T>(
+    operation: () => Promise<{ output_parsed: unknown }>,
+    schema: { parse(value: unknown): T },
+  ): Promise<T> {
+    try {
+      const response = await this.withRetry(operation);
+      if (!response.output_parsed) throw new ModelProviderError('MODEL_INVALID_RESPONSE');
+      return schema.parse(response.output_parsed);
+    } catch (error) {
+      if (error instanceof ModelProviderError) throw error;
+      if (isContractError(error)) throw new ModelProviderError('MODEL_INVALID_RESPONSE');
+      throw new ModelProviderError('MODEL_UNAVAILABLE');
+    }
+  }
+
   private async withRetry<T>(operation: () => Promise<T>): Promise<T> {
     try {
       return await operation();
@@ -94,17 +138,28 @@ export class OpenAIModelProvider implements ModelProvider {
   }
 }
 
-class ModelContractError extends Error {
-  constructor(code: string) {
-    super(code);
-    this.name = 'ModelContractError';
-  }
-}
-
 function isRetryableModelError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const status = 'status' in error ? Number(error.status) : 0;
   return status === 429 || status >= 500;
+}
+
+function isContractError(error: unknown): boolean {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    ('issues' in error || ('name' in error && String(error.name).includes('Parse'))),
+  );
+}
+
+export class DisabledModelProvider implements ModelProvider {
+  analyzeInterview(_project: Project, _signal?: AbortSignal): Promise<InterviewAnalysis> {
+    return Promise.reject(new ModelProviderError('MODEL_NOT_CONFIGURED'));
+  }
+
+  generateBrief(_project: Project, _signal?: AbortSignal): Promise<GeneratedBrief> {
+    return Promise.reject(new ModelProviderError('MODEL_NOT_CONFIGURED'));
+  }
 }
 
 export class MockModelProvider implements ModelProvider {

@@ -73,13 +73,14 @@ Then set `DATA_MODE=supabase`, activate Clerk's native Supabase integration, reg
 | `APP_ENV`                                  | `local`        | `preview` or `production`; controls fail-closed validation     |
 | `APP_URL`, `ALLOWED_ORIGIN`                | local URL      | Exact public URL and exact accepted browser origin             |
 | `LOCAL_AUTH_BYPASS`                        | `true`         | Forbidden in production                                        |
-| `PROVIDER_MODE`                            | `mock`         | Must be `live` in production                                   |
+| `MODEL_PROVIDER_MODE`                      | `mock`         | `disabled`, `mock`, or `live`; production forbids `mock`       |
+| `NOTION_PROVIDER_MODE`                     | `mock`         | `mock` locally and `live` in preview/production                |
 | `DATA_MODE`                                | `memory`       | Must be `supabase` in production                               |
 | `VITE_CLERK_PUBLISHABLE_KEY`               | empty          | Clerk frontend key                                             |
 | `CLERK_SECRET_KEY`                         | empty          | Clerk Express verification key                                 |
 | `SUPABASE_URL`                             | empty          | Separate staging/production Supabase project URL               |
 | `SUPABASE_PUBLISHABLE_KEY`                 | empty          | Publishable key; requests also carry the active Clerk JWT      |
-| `OPENAI_API_KEY`                           | empty          | Server-only OpenAI key                                         |
+| `OPENAI_API_KEY`                           | empty          | Required only when `MODEL_PROVIDER_MODE=live`                  |
 | `OPENAI_MODEL`                             | `gpt-5.6`      | Interview and brief model                                      |
 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | empty          | Notion public integration credentials                          |
 | `NOTION_REDIRECT_URI`                      | local callback | Exact OAuth callback registered in Notion                      |
@@ -87,11 +88,13 @@ Then set `DATA_MODE=supabase`, activate Clerk's native Supabase integration, reg
 | `OAUTH_STATE_SECRET`                       | empty          | At least 32 random characters for signed, expiring OAuth state |
 | `SENTRY_DSN`, `VITE_SENTRY_DSN`            | empty          | Optional scrubbed error/tracing destination; Replay stays off  |
 
-Production startup rejects mock providers, memory data, auth bypass, or missing security/provider credentials.
+Production startup rejects a mock model, mock Notion, memory data, auth bypass, or missing security/provider credentials. Until the paid model smoke test is authorized, production uses `MODEL_PROVIDER_MODE=disabled`; interview and generation return the explicit `503 MODEL_NOT_CONFIGURED` response without constructing an OpenAI client. Preview uses a deterministic model mock with live Notion and staging Supabase. The protected `GET /api/capabilities` endpoint reports the active model and Notion modes to the signed-in client.
 
 ## Interview and model contract
 
 One GPT-5.6 Responses API call occurs only after the user submits an answer—never while typing. Interview calls use low reasoning; final brief generation uses medium reasoning. Both use strict Structured Outputs. OpenAI requests set `store:false` and time out after 30 seconds. Only 429/5xx receives one retry.
+
+The live adapter is contract-tested with an injected fake Responses client, so `store:false`, reasoning levels, schemas, retry behavior, refusal handling, and error mapping are verified without paid API usage. Enabling the live path later requires only an OpenAI key, `MODEL_PROVIDER_MODE=live`, a gated deployment, and one synthetic contract smoke test.
 
 Every interview turn must return:
 
@@ -162,15 +165,30 @@ The Supabase integration suite requires local Supabase to be active and never si
 
 CI stores coverage, Playwright evidence, Supabase status, Trivy SARIF, CycloneDX SBOM, and a sanitized per-commit summary for 30 days.
 
+The coverage gate measures every `server/**/*.ts` file except the process entrypoint. Global thresholds are 85% for lines/statements/functions and 75% for branches, with stricter 90% line and 85% branch gates on configuration, security, Sentry redaction, and workflow invariants.
+
 ## CI/CD and environments
 
 - Pull requests: format, lint, typecheck, unit/API contracts, empty-DB migration, two-user MFA RLS, Playwright desktop/mobile, production build, Linux/amd64 Docker build, full and production audits, secret scan, critical image scan, and SBOM.
 - Preview: Vercel Git integration, Clerk development instance, Supabase staging, preview-only secrets.
-- Production: protected `main`, required **Required CI**, manual `production` environment approval, forward-only Supabase migration, then prebuilt Vercel deployment.
+- Production: protected `main`, required **Required CI**, manual `production` environment approval, and a forward-only Supabase migration for the exact main SHA. Vercel Git integration is the only deployment path; GitHub Actions does not build or deploy a second copy.
 - Set repository variable `PRODUCTION_RELEASE_ENABLED=true` only after every production secret and environment protection rule exists.
 - Configure Vercel Deployment Checks to require the GitHub **Required CI** check before promotion.
 
 Rollback is a Vercel deployment rollback for application code. Database rollback is always a forward repair migration; destructive migrations are forbidden before submission.
+
+### Synthetic founder example
+
+An operator can seed the approved, clearly labeled founder example without OpenAI. The script uses a direct staging/production database operator URL only during execution, is deterministic per owner, never prints an owner ID or credential, and refuses production unless confirmation is explicit.
+
+```powershell
+$env:SUPABASE_DB_URL = '<operator database URL>'
+$env:LUMIXIA_SEED_OWNER_ID = '<authenticated Clerk owner ID>'
+npm run seed:founder -- --environment=staging
+# Production additionally requires: --confirm-production
+```
+
+These two operator variables are not application runtime variables and must not be added to Vercel.
 
 ## Observability
 
@@ -199,6 +217,7 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 - **API returns `MFA_REQUIRED`:** enroll TOTP in Clerk Security, sign out/in, and verify the Clerk session token exposes `aal`, `fva`, or `amr`.
 - **RLS returns no project:** confirm the active Clerk token `sub` matches `owner_id` and contains an accepted second-factor claim.
 - **Answer shows failed:** the answer is already saved. Use Retry; do not submit a new client answer ID.
+- **Interview returns `MODEL_NOT_CONFIGURED`:** this is the intended disabled-production state before the paid live smoke test; no OpenAI request was sent.
 - **Notion shows 401:** reconnect only if automatic refresh reports `NOTION_RECONNECT_REQUIRED`.
 - **OneDrive dev is slow:** keep daily Node development native; use Docker only for Supabase and portability gates.
 

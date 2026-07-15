@@ -11,23 +11,41 @@ import {
 } from './types.js';
 
 type JsonRecord = Record<string, unknown>;
+type ClientOptions = NonNullable<Parameters<typeof createClient>[2]>;
+export type SupabaseClientFactory = (
+  url: string,
+  publishableKey: string,
+  options: ClientOptions,
+) => SupabaseClient;
+
+const defaultClientFactory: SupabaseClientFactory = (url, publishableKey, options) =>
+  createClient(url, publishableKey, options);
 
 export class SupabaseProjectStore implements ProjectStore {
   constructor(
     private readonly url: string,
     private readonly publishableKey: string,
+    private readonly clientFactory: SupabaseClientFactory = defaultClientFactory,
   ) {}
 
-  private client(token?: string): SupabaseClient {
+  private client(token?: string, signal?: AbortSignal): SupabaseClient {
     if (!token) throw new Error('SUPABASE_JWT_REQUIRED');
-    return createClient(this.url, this.publishableKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
+    return this.clientFactory(this.url, this.publishableKey, {
+      global: {
+        headers: { Authorization: `Bearer ${token}` },
+        ...(signal
+          ? {
+              fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+                fetch(input, { ...init, signal: combinedSignal(signal, init?.signal) }),
+            }
+          : {}),
+      },
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
   }
 
-  async listProjects(ownerId: string, token?: string): Promise<Project[]> {
-    const { data, error } = await this.client(token)
+  async listProjects(ownerId: string, token?: string, signal?: AbortSignal): Promise<Project[]> {
+    const { data, error } = await this.client(token, signal)
       .from('projects')
       .select('document,revision')
       .eq('owner_id', ownerId)
@@ -38,8 +56,13 @@ export class SupabaseProjectStore implements ProjectStore {
     );
   }
 
-  async getProject(ownerId: string, projectId: string, token?: string): Promise<Project | null> {
-    const { data, error } = await this.client(token)
+  async getProject(
+    ownerId: string,
+    projectId: string,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<Project | null> {
+    const { data, error } = await this.client(token, signal)
       .from('projects')
       .select('document,revision')
       .eq('owner_id', ownerId)
@@ -51,16 +74,18 @@ export class SupabaseProjectStore implements ProjectStore {
       : null;
   }
 
-  async createProject(project: Project, token?: string): Promise<Project> {
-    const { error } = await this.client(token).from('projects').insert(this.projectRow(project));
+  async createProject(project: Project, token?: string, signal?: AbortSignal): Promise<Project> {
+    const { error } = await this.client(token, signal)
+      .from('projects')
+      .insert(this.projectRow(project));
     if (error) throw error;
     return project;
   }
 
-  async saveProject(project: Project, token?: string): Promise<Project> {
+  async saveProject(project: Project, token?: string, signal?: AbortSignal): Promise<Project> {
     const expectedRevision = project.revision;
     const next = { ...project, revision: expectedRevision + 1 };
-    const { data, error } = await this.client(token).rpc('compare_and_save_project', {
+    const { data, error } = await this.client(token, signal).rpc('compare_and_save_project', {
       p_owner_id: project.ownerId,
       p_project_id: project.id,
       p_expected_revision: expectedRevision,
@@ -76,8 +101,13 @@ export class SupabaseProjectStore implements ProjectStore {
     return next;
   }
 
-  async deleteProject(ownerId: string, projectId: string, token?: string): Promise<boolean> {
-    const { data, error } = await this.client(token)
+  async deleteProject(
+    ownerId: string,
+    projectId: string,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    const { data, error } = await this.client(token, signal)
       .from('projects')
       .delete()
       .eq('id', projectId)
@@ -94,8 +124,9 @@ export class SupabaseProjectStore implements ProjectStore {
     payload: Record<string, unknown>,
     retryFailed: boolean,
     token?: string,
+    signal?: AbortSignal,
   ): Promise<InterviewTurnClaim> {
-    const { data, error } = await this.client(token).rpc('claim_interview_turn', {
+    const { data, error } = await this.client(token, signal).rpc('claim_interview_turn', {
       p_owner_id: ownerId,
       p_project_id: projectId,
       p_client_answer_id: clientAnswerId,
@@ -121,8 +152,9 @@ export class SupabaseProjectStore implements ProjectStore {
     result: Project,
     errorCode: string | null,
     token?: string,
+    signal?: AbortSignal,
   ): Promise<void> {
-    const { data, error } = await this.client(token).rpc('complete_interview_turn', {
+    const { data, error } = await this.client(token, signal).rpc('complete_interview_turn', {
       p_owner_id: ownerId,
       p_project_id: projectId,
       p_client_answer_id: clientAnswerId,
@@ -134,8 +166,12 @@ export class SupabaseProjectStore implements ProjectStore {
     if (!data) throw new Error('TURN_NOT_CLAIMED');
   }
 
-  async getNotionConnection(ownerId: string, token?: string): Promise<NotionConnection | null> {
-    const { data, error } = await this.client(token)
+  async getNotionConnection(
+    ownerId: string,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<NotionConnection | null> {
+    const { data, error } = await this.client(token, signal)
       .from('notion_connections')
       .select('*')
       .eq('owner_id', ownerId)
@@ -155,8 +191,12 @@ export class SupabaseProjectStore implements ProjectStore {
     };
   }
 
-  async saveNotionConnection(connection: NotionConnection, token?: string): Promise<void> {
-    const { error } = await this.client(token).from('notion_connections').upsert({
+  async saveNotionConnection(
+    connection: NotionConnection,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { error } = await this.client(token, signal).from('notion_connections').upsert({
       owner_id: connection.ownerId,
       access_token_encrypted: connection.accessTokenEncrypted,
       refresh_token_encrypted: connection.refreshTokenEncrypted,
@@ -169,16 +209,24 @@ export class SupabaseProjectStore implements ProjectStore {
     if (error) throw error;
   }
 
-  async deleteNotionConnection(ownerId: string, token?: string): Promise<void> {
-    const { error } = await this.client(token)
+  async deleteNotionConnection(
+    ownerId: string,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { error } = await this.client(token, signal)
       .from('notion_connections')
       .delete()
       .eq('owner_id', ownerId);
     if (error) throw error;
   }
 
-  async claimNotionSync(record: NotionSyncRecord, token?: string): Promise<NotionSyncClaim> {
-    const { data, error } = await this.client(token).rpc('claim_notion_sync', {
+  async claimNotionSync(
+    record: NotionSyncRecord,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<NotionSyncClaim> {
+    const { data, error } = await this.client(token, signal).rpc('claim_notion_sync', {
       p_owner_id: record.ownerId,
       p_project_id: record.projectId,
       p_brief_version: record.briefVersion,
@@ -201,8 +249,12 @@ export class SupabaseProjectStore implements ProjectStore {
     };
   }
 
-  async completeNotionSync(record: NotionSyncRecord, token?: string): Promise<void> {
-    const { data, error } = await this.client(token).rpc('complete_notion_sync', {
+  async completeNotionSync(
+    record: NotionSyncRecord,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { data, error } = await this.client(token, signal).rpc('complete_notion_sync', {
       p_owner_id: record.ownerId,
       p_project_id: record.projectId,
       p_brief_version: record.briefVersion,
@@ -243,4 +295,8 @@ export class SupabaseProjectStore implements ProjectStore {
       updated_at: project.updatedAt,
     };
   }
+}
+
+function combinedSignal(primary: AbortSignal, secondary?: AbortSignal | null) {
+  return secondary ? AbortSignal.any([primary, secondary]) : primary;
 }
