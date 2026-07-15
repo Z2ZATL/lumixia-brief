@@ -21,7 +21,7 @@
 
 - Enable Google as the only sign-in strategy.
 - Require TOTP enrollment and enable backup codes.
-- Create the Supabase integration/JWT template.
+- Activate Clerk's native Supabase integration and register its domain as a Supabase third-party auth provider.
 - Ensure the JWT includes `sub`, `role=authenticated`, and one of: `aal=aal2`, `fva` with a valid second-factor age, or `amr` containing `mfa`/`totp`/`otp`.
 - Set production redirect/origin allowlists exactly; do not use wildcards.
 

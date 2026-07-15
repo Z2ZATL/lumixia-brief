@@ -12,13 +12,13 @@ This record separates build-tool exposure from production runtime risk. It does 
 
 ## Development-only tooling
 
-The full dependency audit reports 31 development-tree findings: 2 low, 7 moderate, 22 high, and 0 critical. The only direct dependency associated with the high-severity chain is the pinned Vercel CLI. `npm audit` proposes Vercel CLI `54.17.3` as a semver-major replacement for the currently pinned `56.1.0`; that is a downgrade across the tool's compatibility boundary, not a safe patch.
+The full locked dependency audit reports **0 vulnerabilities**. BL-010 removed the Vercel CLI from `devDependencies` because Vercel ignores a project-local CLI during hosted builds and the CLI imported unrelated framework builders into the repository audit graph.
 
-The affected packages are not copied into the production image. They are used only for local/CI build and deployment tooling. CI installs dependencies with lifecycle scripts disabled, pins GitHub Actions by full commit SHA, scans secrets and the built runtime image, and gates production dependencies separately.
+Deployment commands invoke `vercel@56.1.0` explicitly through `npx` instead. This preserves the required tool version without adding its deployment-only transitive packages to the application lockfile or Docker build context. CI installs repository dependencies with lifecycle scripts disabled, pins GitHub Actions by full commit SHA, scans secrets and the built runtime image, and gates both full and production-only dependency audits.
 
 ## Disposition
 
-- Do not run `npm audit fix --force`; it would silently change the pinned deployment tool and could break Build Week compatibility.
-- Keep the Vercel CLI pinned for reproducible submission builds.
-- Review the advisory chain on each Dependabot update and upgrade when Vercel publishes a compatible release whose resolved tree clears the findings.
+- Do not run `npm audit fix --force`; dependency changes remain reviewed and lockfile-controlled.
+- Keep the Vercel CLI version explicit at every invocation and review upgrades independently from application dependencies.
+- A high or critical finding in the full locked dependency audit is a quality-gate failure.
 - A new high or critical finding in `npm audit --omit=dev` remains a release blocker.

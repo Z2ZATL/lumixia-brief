@@ -43,11 +43,12 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
-    "vercel:dev": "vercel dev",
+    "vercel:dev": "npx --yes --loglevel=error vercel@56.1.0 dev",
+    "audit:all": "npm audit --audit-level=high",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "evidence": "tsx scripts/write-ci-evidence.ts",
     "quality:static": "npm run format:check && npm run lint && npm run typecheck && npm run knip && npm run css:check",
-    "quality": "npm run quality:static && npm run test:coverage && npm run test:ui && npm run build && npm run bundle:check && npm run audit:prod"
+    "quality": "npm run quality:static && npm run test:coverage && npm run test:ui && npm run build && npm run bundle:check && npm run audit:all && npm run audit:prod"
   },
   "dependencies": {
     "@clerk/express": "2.1.41",
@@ -91,7 +92,6 @@
     "supertest": "^7.2.2",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.56.1",
-    "vercel": "56.1.0",
     "vite": "8.1.4",
     "vitest": "^4.0.18"
   }
