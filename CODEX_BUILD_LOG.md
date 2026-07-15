@@ -18,6 +18,7 @@ Core `/feedback` Session ID: `019f614d-cd80-76d3-8151-b8271f575a3f`
 | BL-010 | Live integration and deployment hardening   | same                                   | Custom domain, Clerk/Supabase/Notion/Vercel setup, native Clerk tokens, clean Vercel Functions build            | Static/unit/UI/RLS/E2E, build, audit, Docker and Vercel Preview    | `43d0307` / [PR #18](https://github.com/Z2ZATL/lumixia-brief/pull/18) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29378145604)                       |
 | BL-011 | Production runtime recovery                 | same                                   | Public health isolation from Clerk, credential refresh, post-deploy health gate                                 | Regression/static/unit/UI/RLS/E2E, build, audit and Gitleaks       | `ab0ab71` / [PR #19](https://github.com/Z2ZATL/lumixia-brief/pull/19) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29391478946)                       |
 | BL-012 | Provider runtime recovery                   | same                                   | Explicit Clerk keys, least-privilege Supabase readiness RPC, production defect regressions                      | Regression/static/unit/UI/RLS/E2E, build, audit and production     | `b02d365` / [PR #20](https://github.com/Z2ZATL/lumixia-brief/pull/20) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29393613659)                       |
+| BL-013 | Production Google OAuth recovery            | same                                   | Dedicated Google OAuth client, exact Clerk callback, production provider enablement, signed-out smoke test      | Clerk provider status and Google account-chooser boundary          | pending                                                                                                                                                              |
 
 Detailed entry: [BL-001–005 core implementation](docs/codex-build-ledger/BL-001-005-core-implementation.md)
 
@@ -34,6 +35,8 @@ Integration entry: [BL-010 live integration and deployment hardening](docs/codex
 Recovery entry: [BL-011 production runtime recovery](docs/codex-build-ledger/BL-011-production-runtime-recovery.md)
 
 Provider recovery entry: [BL-012 provider runtime recovery](docs/codex-build-ledger/BL-012-provider-runtime-recovery.md)
+
+Google OAuth recovery entry: [BL-013 production Google OAuth recovery](docs/codex-build-ledger/BL-013-production-google-oauth-recovery.md)
 
 ## Required entry fields for future milestones
 
