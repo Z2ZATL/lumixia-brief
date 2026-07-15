@@ -42,3 +42,25 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Verify public production health
+        shell: bash
+        run: |
+          for endpoint in /api/health /api/ready; do
+            status=""
+            for attempt in {1..12}; do
+              status="$(curl --silent --show-error --output /tmp/health-response.json --write-out '%{http_code}' "${APP_ORIGIN}${endpoint}")"
+              if [ "$status" = "200" ]; then
+                break
+              fi
+              if [ "$attempt" -lt 12 ]; then
+                sleep 5
+              fi
+            done
+
+            if [ "$status" != "200" ]; then
+              echo "Production check failed for ${endpoint} with HTTP ${status}."
+              exit 1
+            fi
+          done
+        env:
+          APP_ORIGIN: https://brief.z2zs.space

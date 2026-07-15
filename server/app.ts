@@ -68,13 +68,15 @@ export function createApp(dependencies = createDependencies()) {
   app.use(securityHeaders(config));
   app.use(exactOrigin(config));
   app.use(express.json({ limit: '32kb', strict: true }));
+
+  // Liveness and readiness must remain public and independent from identity providers.
+  app.use('/api', createHealthRouter(config));
+
   if (!config.authBypass && config.NODE_ENV !== 'test') {
     app.use(
       clerkMiddleware(config.CLERK_SECRET_KEY ? { secretKey: config.CLERK_SECRET_KEY } : undefined),
     );
   }
-
-  app.use('/api', createHealthRouter(config));
 
   const protectedApi = express.Router();
   protectedApi.use(requireMfa(config), perUserRateLimit(config));
