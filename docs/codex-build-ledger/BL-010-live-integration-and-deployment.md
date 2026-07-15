@@ -2,9 +2,9 @@
 
 - Date: 2026-07-15
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
-- Commit: pending (this entry will be updated after the implementation commit exists)
-- PR: pending
-- CI: pending
+- Commit: `43d0307`
+- PR: [#18](https://github.com/Z2ZATL/lumixia-brief/pull/18)
+- CI: [29378145604](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29378145604)
 
 ## Sanitized owner instruction
 
