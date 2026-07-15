@@ -46,6 +46,28 @@ describe('Lumixia API', () => {
     expect(response.headers['content-security-policy']).toContain('frame-ancestors');
   });
 
+  it('keeps public health routes independent from Clerk authentication', async () => {
+    const config = loadConfig({
+      NODE_ENV: 'development',
+      APP_ENV: 'preview',
+      APP_URL: 'https://brief.example.com',
+      ALLOWED_ORIGIN: 'https://brief.example.com',
+      CLERK_SECRET_KEY: 'invalid-clerk-secret',
+      LOCAL_AUTH_BYPASS: 'false',
+      PROVIDER_MODE: 'mock',
+      DATA_MODE: 'memory',
+    });
+    const publicApp = createApp({
+      config,
+      store: new MemoryProjectStore(),
+      model: new MockModelProvider(),
+      notion: new MockNotionProvider(),
+    });
+
+    await request(publicApp).get('/api/health').expect(200);
+    await request(publicApp).get('/api/ready').expect(200);
+  });
+
   it('fails closed when the distributed rate-limit backend is unavailable', async () => {
     const config = loadConfig({
       NODE_ENV: 'development',
