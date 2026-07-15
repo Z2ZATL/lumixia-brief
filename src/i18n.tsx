@@ -50,6 +50,7 @@ const messages = {
     to: 'Final interview',
     decisions: 'human decisions remaining',
     retry: 'Retry saved answer',
+    modelNotConfigured: 'AI generation is paused until the OpenAI provider is enabled.',
     status: 'Status',
     secureSetup: 'Complete two-step security',
     secureBody:
@@ -242,6 +243,7 @@ const messages = {
     to: 'หลังสัมภาษณ์',
     decisions: 'เรื่องที่มนุษย์ยังต้องตัดสินใจ',
     retry: 'ลองประมวลผลคำตอบที่บันทึกแล้วอีกครั้ง',
+    modelNotConfigured: 'ระบบพักการสร้างด้วย AI จนกว่าจะเปิดใช้งาน OpenAI provider',
     status: 'สถานะ',
     secureSetup: 'ตั้งค่าความปลอดภัยสองชั้นให้เสร็จ',
     secureBody:

@@ -6,7 +6,7 @@ import { HttpError } from '../http.js';
 import type { ModelProvider } from '../providers/model.js';
 import type { RequestIdentity } from '../routes/request.js';
 import type { InterviewTurnClaim, ProjectStore } from '../store/types.js';
-import { getOwnedProject, touch } from './support.js';
+import { getOwnedProject, modelHttpError, touch } from './support.js';
 
 type SubmitAnswerInput = z.infer<typeof submitAnswerInputSchema>;
 type AnswerRecord = Project['answers'][number];
@@ -30,7 +30,7 @@ export class InterviewService {
     if (project.workflowStatus === 'draft') project.workflowStatus = 'interviewing';
     project.currentQuestion ??= initialQuestion(project.locale);
     touch(project);
-    return this.store.saveProject(project, identity.token);
+    return this.store.saveProject(project, identity.token, identity.signal);
   }
 
   async submit(identity: RequestIdentity, projectId: string, input: SubmitAnswerInput) {
@@ -43,6 +43,7 @@ export class InterviewService {
       input,
       false,
       identity.token,
+      identity.signal,
     );
     const duplicate = await this.resolveClaim(identity, project, input.clientAnswerId, claim);
     if (duplicate) return duplicate;
@@ -50,7 +51,7 @@ export class InterviewService {
     project.answers.push(answer);
     project.workflowStatus = 'interviewing';
     touch(project);
-    project = await this.store.saveProject(project, identity.token);
+    project = await this.store.saveProject(project, identity.token, identity.signal);
     return this.analyze(
       identity,
       project,
@@ -76,13 +77,14 @@ export class InterviewService {
       payload,
       true,
       identity.token,
+      identity.signal,
     );
     const duplicate = await this.resolveClaim(identity, project, answer.clientAnswerId, claim);
     if (duplicate) return duplicate;
     answer.status = 'pending';
     answer.errorCode = null;
     touch(project);
-    await this.store.saveProject(project, identity.token);
+    await this.store.saveProject(project, identity.token, identity.signal);
     return this.analyze(identity, project, answer, 'The answer remains saved and can be retried.');
   }
 
@@ -110,13 +112,36 @@ export class InterviewService {
     if (claim.state !== 'duplicate') return null;
     const resultProject =
       claim.result ??
-      (await this.store.getProject(identity.ownerId, project.id, identity.token)) ??
+      (await this.store.getProject(
+        identity.ownerId,
+        project.id,
+        identity.token,
+        identity.signal,
+      )) ??
       project;
+    const storedAnswer =
+      resultProject.answers.find((item) => item.clientAnswerId === clientAnswerId) ?? null;
+    const recoveredStatus =
+      claim.status === 'pending' && storedAnswer && storedAnswer.status !== 'pending'
+        ? storedAnswer.status
+        : claim.status;
+    if (claim.status === 'pending' && recoveredStatus !== 'pending') {
+      await this.store.completeInterviewTurn(
+        identity.ownerId,
+        project.id,
+        clientAnswerId,
+        recoveredStatus,
+        resultProject,
+        storedAnswer?.errorCode ?? null,
+        identity.token,
+        identity.signal,
+      );
+    }
     return {
-      httpStatus: claim.status === 'pending' ? 202 : 200,
+      httpStatus: recoveredStatus === 'pending' ? 202 : 200,
       project: resultProject,
-      answer: resultProject.answers.find((item) => item.clientAnswerId === clientAnswerId) ?? null,
-      status: claim.status,
+      answer: storedAnswer,
+      status: recoveredStatus,
       idempotent: true,
     };
   }
@@ -142,32 +167,34 @@ export class InterviewService {
     failureMessage: string,
   ): Promise<InterviewServiceResult> {
     const savedAnswer = this.answerInProject(project, answer.id);
+    let analysis: Awaited<ReturnType<ModelProvider['analyzeInterview']>>;
     try {
-      project.analysis = enforceStopRules(
-        await this.model.analyzeInterview(project),
-        project.answers.length,
-      );
-      project.currentQuestion = project.analysis.nextQuestion;
-      savedAnswer.status = 'processed';
-      savedAnswer.processedAt = new Date().toISOString();
-      touch(project);
-      const saved = await this.store.saveProject(project, identity.token);
-      await this.complete(identity, saved, savedAnswer, 'processed', null);
-      return {
-        httpStatus: 200,
-        project: saved,
-        answer: savedAnswer,
-        status: 'processed',
-        idempotent: false,
-      };
-    } catch {
+      analysis = await this.model.analyzeInterview(project, identity.signal);
+    } catch (error) {
+      const httpError = modelHttpError(error);
+      const errorCode = httpError instanceof HttpError ? httpError.code : 'MODEL_UNAVAILABLE';
       savedAnswer.status = 'failed';
-      savedAnswer.errorCode = 'MODEL_UNAVAILABLE';
+      savedAnswer.errorCode = errorCode;
       touch(project);
-      const failed = await this.store.saveProject(project, identity.token);
-      await this.complete(identity, failed, savedAnswer, 'failed', 'MODEL_UNAVAILABLE');
+      const failed = await this.store.saveProject(project, identity.token, identity.signal);
+      await this.complete(identity, failed, savedAnswer, 'failed', errorCode);
+      if (httpError instanceof HttpError) throw httpError;
       throw new HttpError(502, 'MODEL_UNAVAILABLE', failureMessage);
     }
+    project.analysis = enforceStopRules(analysis, project.answers.length);
+    project.currentQuestion = project.analysis.nextQuestion;
+    savedAnswer.status = 'processed';
+    savedAnswer.processedAt = new Date().toISOString();
+    touch(project);
+    const saved = await this.store.saveProject(project, identity.token, identity.signal);
+    await this.complete(identity, saved, savedAnswer, 'processed', null);
+    return {
+      httpStatus: 200,
+      project: saved,
+      answer: savedAnswer,
+      status: 'processed',
+      idempotent: false,
+    };
   }
 
   private answerInProject(project: Project, answerId: string) {
@@ -191,6 +218,7 @@ export class InterviewService {
       project,
       errorCode,
       identity.token,
+      identity.signal,
     );
   }
 }

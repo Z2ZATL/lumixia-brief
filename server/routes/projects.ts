@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { createProjectInputSchema } from '../../shared/contracts.js';
 import { ProjectService } from '../services/projects.js';
-import { asyncRoute, requestIdentity, validateBody } from './request.js';
+import { asyncRoute, projectId, requestIdentity, validateBody } from './request.js';
 
 export function createProjectRouter(service: ProjectService) {
   const router = Router();
@@ -26,14 +26,14 @@ export function createProjectRouter(service: ProjectService) {
     '/projects/:projectId',
     asyncRoute(async (req, res) => {
       res.json({
-        project: await service.get(requestIdentity(req), String(req.params['projectId'])),
+        project: await service.get(requestIdentity(req), projectId(req)),
       });
     }),
   );
   router.delete(
     '/projects/:projectId',
     asyncRoute(async (req, res) => {
-      await service.delete(requestIdentity(req), String(req.params['projectId']));
+      await service.delete(requestIdentity(req), projectId(req));
       res.sendStatus(204);
     }),
   );

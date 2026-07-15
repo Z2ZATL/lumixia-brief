@@ -3,7 +3,7 @@ import { submitAnswerInputSchema } from '../../shared/contracts.js';
 import type { AppConfig } from '../config.js';
 import { perUserRateLimit } from '../http.js';
 import { InterviewService, type InterviewServiceResult } from '../services/interview.js';
-import { asyncRoute, requestIdentity, validateBody } from './request.js';
+import { asyncRoute, clientAnswerId, projectId, requestIdentity, validateBody } from './request.js';
 
 function sendResult(res: Response, result: InterviewServiceResult) {
   res.status(result.httpStatus).json({
@@ -19,7 +19,7 @@ export function createInterviewRouter(service: InterviewService, config: AppConf
   router.post(
     '/projects/:projectId/interview/start',
     asyncRoute(async (req, res) => {
-      const project = await service.start(requestIdentity(req), String(req.params['projectId']));
+      const project = await service.start(requestIdentity(req), projectId(req));
       res.json({ project });
     }),
   );
@@ -30,7 +30,7 @@ export function createInterviewRouter(service: InterviewService, config: AppConf
     asyncRoute(async (req, res) => {
       const result = await service.submit(
         requestIdentity(req),
-        String(req.params['projectId']),
+        projectId(req),
         submitAnswerInputSchema.parse(req.body),
       );
       sendResult(res, result);
@@ -39,11 +39,7 @@ export function createInterviewRouter(service: InterviewService, config: AppConf
   router.post(
     '/projects/:projectId/interview/answers/:clientAnswerId/retry',
     asyncRoute(async (req, res) => {
-      const result = await service.retry(
-        requestIdentity(req),
-        String(req.params['projectId']),
-        String(req.params['clientAnswerId']),
-      );
+      const result = await service.retry(requestIdentity(req), projectId(req), clientAnswerId(req));
       sendResult(res, result);
     }),
   );

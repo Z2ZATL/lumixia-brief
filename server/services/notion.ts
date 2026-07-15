@@ -34,24 +34,28 @@ export class NotionService {
   }
 
   async status(identity: RequestIdentity) {
-    const connection = await this.store.getNotionConnection(identity.ownerId, identity.token);
+    const connection = await this.store.getNotionConnection(
+      identity.ownerId,
+      identity.token,
+      identity.signal,
+    );
     return { connected: Boolean(connection), workspaceName: connection?.workspaceName ?? null };
   }
 
   async listPages(identity: RequestIdentity) {
     const { accessToken } = await this.usableConnection(identity);
     try {
-      return await this.notion.listPages(accessToken);
+      return await this.notion.listPages(accessToken, identity.signal);
     } catch (error) {
       if (!(error instanceof NotionApiError) || error.status !== 401) throw error;
       const refreshed = await this.usableConnection(identity, true);
-      return this.notion.listPages(refreshed.accessToken);
+      return this.notion.listPages(refreshed.accessToken, identity.signal);
     }
   }
 
   async completeOAuth(identity: RequestIdentity, code: string, state: string) {
-    this.notion.verifyState(state, identity.ownerId);
-    const response = await this.notion.exchangeCode(code);
+    this.verifyOAuthState(identity, state);
+    const response = await this.notion.exchangeCode(code, identity.signal);
     const now = new Date();
     await this.store.saveNotionConnection(
       {
@@ -70,19 +74,25 @@ export class NotionService {
         updatedAt: now.toISOString(),
       },
       identity.token,
+      identity.signal,
     );
     return `${this.config.APP_URL}/settings?notion=connected`;
   }
 
+  rejectOAuth(identity: RequestIdentity, state: string) {
+    this.verifyOAuthState(identity, state);
+    throw new HttpError(400, 'NOTION_OAUTH_DENIED', 'Notion authorization was cancelled.');
+  }
+
   disconnect(identity: RequestIdentity) {
-    return this.store.deleteNotionConnection(identity.ownerId, identity.token);
+    return this.store.deleteNotionConnection(identity.ownerId, identity.token, identity.signal);
   }
 
   async selectParent(identity: RequestIdentity, projectId: string, parentId: string) {
     const project = await getOwnedProject(this.store, identity, projectId);
     project.notionParentId = parentId;
     touch(project);
-    return this.store.saveProject(project, identity.token);
+    return this.store.saveProject(project, identity.token, identity.signal);
   }
 
   async sync(identity: RequestIdentity, projectId: string): Promise<NotionSyncResult> {
@@ -102,7 +112,7 @@ export class NotionService {
     if (existing) return existing;
     project.syncStatus = 'syncing';
     touch(project);
-    await this.store.saveProject(project, identity.token);
+    await this.store.saveProject(project, identity.token, identity.signal);
     const pageId = await this.performSync(identity, project, connection, claim, contentHash);
     return this.completeSuccess(identity, project, claim, pageId);
   }
@@ -128,6 +138,7 @@ export class NotionService {
         updatedAt: now,
       },
       identity.token,
+      identity.signal,
     );
   }
 
@@ -152,7 +163,7 @@ export class NotionService {
     project.syncStatus = 'synced';
     project.lastSyncError = null;
     touch(project);
-    const saved = await this.store.saveProject(project, identity.token);
+    const saved = await this.store.saveProject(project, identity.token, identity.signal);
     return this.result(200, saved, claim.record.notionPageId, 'synced', true);
   }
 
@@ -173,6 +184,7 @@ export class NotionService {
       sections: brief.sections,
       version: brief.version,
       contentHash,
+      ...(identity.signal ? { signal: identity.signal } : {}),
     };
     try {
       try {
@@ -208,11 +220,12 @@ export class NotionService {
         updatedAt: new Date().toISOString(),
       },
       identity.token,
+      identity.signal,
     );
     project.syncStatus = 'error';
     project.lastSyncError = code;
     touch(project);
-    await this.store.saveProject(project, identity.token);
+    await this.store.saveProject(project, identity.token, identity.signal);
   }
 
   private async completeSuccess(
@@ -231,12 +244,13 @@ export class NotionService {
         updatedAt: new Date().toISOString(),
       },
       identity.token,
+      identity.signal,
     );
     project.notionPageId = pageId;
     project.syncStatus = 'synced';
     project.lastSyncError = null;
     touch(project);
-    const saved = await this.store.saveProject(project, identity.token);
+    const saved = await this.store.saveProject(project, identity.token, identity.signal);
     return this.result(200, saved, pageId, 'synced', false);
   }
 
@@ -254,7 +268,11 @@ export class NotionService {
     identity: RequestIdentity,
     forceRefresh = false,
   ): Promise<UsableConnection> {
-    const connection = await this.store.getNotionConnection(identity.ownerId, identity.token);
+    const connection = await this.store.getNotionConnection(
+      identity.ownerId,
+      identity.token,
+      identity.signal,
+    );
     if (!connection) throw new HttpError(409, 'NOTION_NOT_CONNECTED', 'Connect Notion first.');
     const expired = Boolean(connection.expiresAt && Date.parse(connection.expiresAt) <= Date.now());
     if (!forceRefresh && !expired) {
@@ -269,6 +287,7 @@ export class NotionService {
     }
     const refreshed = await this.notion.refreshToken(
       this.decrypt(connection.refreshTokenEncrypted),
+      identity.signal,
     );
     const now = new Date();
     const updated: NotionConnection = {
@@ -285,7 +304,7 @@ export class NotionService {
         : connection.expiresAt,
       updatedAt: now.toISOString(),
     };
-    await this.store.saveNotionConnection(updated, identity.token);
+    await this.store.saveNotionConnection(updated, identity.token, identity.signal);
     return { accessToken: refreshed.access_token, connection: updated };
   }
 
@@ -295,5 +314,13 @@ export class NotionService {
 
   private decrypt(value: string) {
     return decryptSecret(value, this.encryptionKey());
+  }
+
+  private verifyOAuthState(identity: RequestIdentity, state: string) {
+    try {
+      this.notion.verifyState(state, identity.ownerId);
+    } catch {
+      throw new HttpError(400, 'INVALID_OAUTH_STATE', 'The Notion authorization state is invalid.');
+    }
   }
 }

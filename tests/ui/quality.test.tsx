@@ -19,6 +19,7 @@ interface AnswerSubmission {
 
 const mocks = vi.hoisted(() => ({
   api: vi.fn(),
+  capabilities: vi.fn(),
   list: vi.fn(),
   get: vi.fn(),
   create: vi.fn(),
@@ -54,6 +55,9 @@ vi.mock('../../src/lib/api', async (importOriginal) => {
       selectNotionParent: mocks.selectNotionParent,
       syncNotion: mocks.syncNotion,
     },
+    systemApi: {
+      capabilities: mocks.capabilities,
+    },
   };
 });
 
@@ -79,6 +83,10 @@ describe('quality regressions', () => {
     localStorage.clear();
     mocks.list.mockResolvedValue({ projects: [] });
     mocks.api.mockResolvedValue({ connected: false });
+    mocks.capabilities.mockResolvedValue({
+      model: { mode: 'mock', available: true },
+      notion: { mode: 'mock', available: true },
+    });
     mocks.startInterview.mockImplementation(async (id: string) => ({
       project: { ...makeProject(), id },
     }));
@@ -133,6 +141,20 @@ describe('quality regressions', () => {
     expect(mocks.submitAnswer.mock.calls[1]?.[1].answer).toBe(
       mocks.submitAnswer.mock.calls[0]?.[1].answer,
     );
+  });
+
+  it('shows the intentional unavailable state and prevents AI submissions', async () => {
+    const project = makeProject();
+    mocks.get.mockResolvedValue({ project });
+    mocks.capabilities.mockResolvedValue({
+      model: { mode: 'disabled', available: false },
+      notion: { mode: 'live', available: true },
+    });
+    renderRoute(`/projects/${project.id}/interview`, <Interview />);
+    expect(await screen.findByRole('status')).toHaveTextContent(/AI generation is paused/i);
+    expect(screen.getByLabelText(/your answer/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /save answer/i })).toBeDisabled();
+    expect(mocks.submitAnswer).not.toHaveBeenCalled();
   });
 
   it('stops approval when saving a dirty brief fails and skips Notion pages when disconnected', async () => {

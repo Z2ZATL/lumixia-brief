@@ -3,7 +3,7 @@ import { editBriefInputSchema, requestChangesInputSchema } from '../../shared/co
 import type { AppConfig } from '../config.js';
 import { perUserRateLimit } from '../http.js';
 import { BriefService } from '../services/briefs.js';
-import { asyncRoute, requestIdentity, validateBody } from './request.js';
+import { asyncRoute, projectId, requestIdentity, validateBody } from './request.js';
 
 export function createBriefRouter(service: BriefService, config: AppConfig) {
   const router = Router();
@@ -11,14 +11,14 @@ export function createBriefRouter(service: BriefService, config: AppConfig) {
     '/projects/:projectId/briefs/generate',
     perUserRateLimit(config, 8, 60),
     asyncRoute(async (req, res) => {
-      const result = await service.generate(requestIdentity(req), String(req.params['projectId']));
+      const result = await service.generate(requestIdentity(req), projectId(req));
       res.status(result.httpStatus).json(result);
     }),
   );
   router.get(
     '/projects/:projectId/briefs',
     asyncRoute(async (req, res) => {
-      const briefs = await service.list(requestIdentity(req), String(req.params['projectId']));
+      const briefs = await service.list(requestIdentity(req), projectId(req));
       res.json({ briefs });
     }),
   );
@@ -28,7 +28,7 @@ export function createBriefRouter(service: BriefService, config: AppConfig) {
     asyncRoute(async (req, res) => {
       const result = await service.edit(
         requestIdentity(req),
-        String(req.params['projectId']),
+        projectId(req),
         editBriefInputSchema.parse(req.body),
       );
       res.json(result);
@@ -37,7 +37,7 @@ export function createBriefRouter(service: BriefService, config: AppConfig) {
   router.post(
     '/projects/:projectId/briefs/current/approve',
     asyncRoute(async (req, res) => {
-      const result = await service.approve(requestIdentity(req), String(req.params['projectId']));
+      const result = await service.approve(requestIdentity(req), projectId(req));
       res.json(result);
     }),
   );
@@ -47,7 +47,7 @@ export function createBriefRouter(service: BriefService, config: AppConfig) {
     asyncRoute(async (req, res) => {
       const project = await service.requestChanges(
         requestIdentity(req),
-        String(req.params['projectId']),
+        projectId(req),
         requestChangesInputSchema.parse(req.body),
       );
       res.json({ project });

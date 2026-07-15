@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { AppConfig } from '../config.js';
+import { combineSignals } from '../http.js';
 import { asyncRoute } from './request.js';
 
 export function createHealthRouter(config: AppConfig) {
@@ -13,15 +14,15 @@ export function createHealthRouter(config: AppConfig) {
   });
   router.get(
     '/ready',
-    asyncRoute(async (_req, res) => {
-      const ready = await isDatabaseReady(config);
+    asyncRoute(async (req, res) => {
+      const ready = await isDatabaseReady(config, req.requestSignal);
       res.status(ready ? 200 : 503).json({ ready });
     }),
   );
   return router;
 }
 
-async function isDatabaseReady(config: AppConfig) {
+async function isDatabaseReady(config: AppConfig, signal?: AbortSignal) {
   if (config.DATA_MODE !== 'supabase') return true;
   try {
     const response = await fetch(`${config.SUPABASE_URL}/rest/v1/rpc/readiness_check`, {
@@ -31,7 +32,7 @@ async function isDatabaseReady(config: AppConfig) {
         'content-type': 'application/json',
       },
       body: '{}',
-      signal: AbortSignal.timeout(3000),
+      signal: combineSignals(signal, AbortSignal.timeout(3000)),
     });
     return response.ok;
   } catch {

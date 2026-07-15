@@ -29,7 +29,7 @@ const answerStatus = {
 } as const;
 
 function QuestionForm(props: QuestionStageProps) {
-  const { project, answer, busy, setAnswer } = props.session;
+  const { project, answer, busy, modelAvailable, setAnswer } = props.session;
   if (!project?.currentQuestion) return null;
   return (
     <form onSubmit={props.onSubmit} className="question-form">
@@ -47,14 +47,14 @@ function QuestionForm(props: QuestionStageProps) {
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
           rows={7}
-          disabled={busy}
+          disabled={busy || !modelAvailable}
           maxLength={10000}
           placeholder={props.t('answerPlaceholder')}
         />
       </label>
       <div className="answer-actions">
         <span>{answer.length.toLocaleString()} / 10,000</span>
-        <button className="button primary" disabled={!answer.trim() || busy}>
+        <button className="button primary" disabled={!answer.trim() || busy || !modelAvailable}>
           {busy ? props.t('thinking') : `${props.t('continue')} →`}
         </button>
       </div>
@@ -70,7 +70,11 @@ function ReadyCard(props: QuestionStageProps) {
       <span>✓</span>
       <h2>{limit ? props.t('questionLimit') : props.t('enoughContext')}</h2>
       <p>{limit ? props.t('questionLimitBody') : props.t('enoughContextBody')}</p>
-      <button className="button primary" onClick={props.onGenerate} disabled={props.session.busy}>
+      <button
+        className="button primary"
+        onClick={props.onGenerate}
+        disabled={props.session.busy || !props.session.modelAvailable}
+      >
         {props.t('generate')} →
       </button>
     </div>
@@ -106,12 +110,17 @@ function RetryAndGenerate(props: QuestionStageProps) {
   return (
     <>
       {props.session.error && <div className="alert error">{props.session.error}</div>}
+      {!props.session.modelAvailable && (
+        <div className="alert error" role="status">
+          {props.t('modelNotConfigured')}
+        </div>
+      )}
       {failed.map((item) => (
         <button
           key={item.id}
           className="retry-card"
           onClick={() => props.onRetry(item.clientAnswerId)}
-          disabled={props.session.busy}
+          disabled={props.session.busy || !props.session.modelAvailable}
         >
           <span>{props.t('answerSaved')}</span>
           <b>{props.t('retry')} →</b>
@@ -122,7 +131,11 @@ function RetryAndGenerate(props: QuestionStageProps) {
           <span>
             <b>{props.t('briefThreshold')}</b> {props.t('thresholdBody')}
           </span>
-          <button className="button small" onClick={props.onGenerate} disabled={props.session.busy}>
+          <button
+            className="button small"
+            onClick={props.onGenerate}
+            disabled={props.session.busy || !props.session.modelAvailable}
+          >
             {props.t('generate')}
           </button>
         </div>

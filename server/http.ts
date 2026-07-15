@@ -8,6 +8,7 @@ declare global {
   namespace Express {
     interface Request {
       requestId: string;
+      requestSignal?: AbortSignal;
       authContext?: { userId: string; supabaseToken?: string; aal: 'aal2' };
     }
   }
@@ -161,7 +162,7 @@ async function consumeDistributedLimit(
   const bucket = `${req.method}:${sanitizedRoute(req)}:${points}:${duration}`;
   const response = await fetch(`${config.SUPABASE_URL}/rest/v1/rpc/consume_rate_limit`, {
     method: 'POST',
-    signal: AbortSignal.timeout(2500),
+    signal: combineSignals(req.requestSignal, AbortSignal.timeout(2500)),
     headers: {
       apikey: config.SUPABASE_PUBLISHABLE_KEY,
       authorization: `Bearer ${token}`,
@@ -179,8 +180,11 @@ async function consumeDistributedLimit(
 }
 
 export function requestDeadline(milliseconds = 65_000) {
-  return (_req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const controller = new AbortController();
+    req.requestSignal = controller.signal;
     const timer = setTimeout(() => {
+      controller.abort(new Error('REQUEST_TIMEOUT'));
       if (!res.headersSent) {
         res.status(504).json({
           error: { code: 'REQUEST_TIMEOUT', message: 'The request exceeded its safe deadline.' },
@@ -188,10 +192,21 @@ export function requestDeadline(milliseconds = 65_000) {
       }
     }, milliseconds);
     timer.unref();
-    res.once('finish', () => clearTimeout(timer));
-    res.once('close', () => clearTimeout(timer));
+    const cleanup = () => clearTimeout(timer);
+    req.once('aborted', () => controller.abort(new Error('CLIENT_DISCONNECTED')));
+    res.once('finish', cleanup);
+    res.once('close', () => {
+      cleanup();
+      if (!res.writableEnded) controller.abort(new Error('CLIENT_DISCONNECTED'));
+    });
     next();
   };
+}
+
+export function combineSignals(...signals: Array<AbortSignal | undefined>): AbortSignal {
+  const active = signals.filter((signal): signal is AbortSignal => Boolean(signal));
+  if (!active.length) return new AbortController().signal;
+  return active.length === 1 ? active[0]! : AbortSignal.any(active);
 }
 
 export function notFound(_req: Request, _res: Response, next: NextFunction) {

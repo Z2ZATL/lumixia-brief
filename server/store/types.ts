@@ -47,11 +47,21 @@ export interface InterviewTurnClaim {
 }
 
 export interface ProjectStore {
-  listProjects(ownerId: string, token?: string): Promise<Project[]>;
-  getProject(ownerId: string, projectId: string, token?: string): Promise<Project | null>;
-  createProject(project: Project, token?: string): Promise<Project>;
-  saveProject(project: Project, token?: string): Promise<Project>;
-  deleteProject(ownerId: string, projectId: string, token?: string): Promise<boolean>;
+  listProjects(ownerId: string, token?: string, signal?: AbortSignal): Promise<Project[]>;
+  getProject(
+    ownerId: string,
+    projectId: string,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<Project | null>;
+  createProject(project: Project, token?: string, signal?: AbortSignal): Promise<Project>;
+  saveProject(project: Project, token?: string, signal?: AbortSignal): Promise<Project>;
+  deleteProject(
+    ownerId: string,
+    projectId: string,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<boolean>;
   claimInterviewTurn(
     ownerId: string,
     projectId: string,
@@ -59,6 +69,7 @@ export interface ProjectStore {
     payload: Record<string, unknown>,
     retryFailed: boolean,
     token?: string,
+    signal?: AbortSignal,
   ): Promise<InterviewTurnClaim>;
   completeInterviewTurn(
     ownerId: string,
@@ -68,10 +79,23 @@ export interface ProjectStore {
     result: Project,
     errorCode: string | null,
     token?: string,
+    signal?: AbortSignal,
   ): Promise<void>;
-  getNotionConnection(ownerId: string, token?: string): Promise<NotionConnection | null>;
-  saveNotionConnection(connection: NotionConnection, token?: string): Promise<void>;
-  deleteNotionConnection(ownerId: string, token?: string): Promise<void>;
-  claimNotionSync(record: NotionSyncRecord, token?: string): Promise<NotionSyncClaim>;
-  completeNotionSync(record: NotionSyncRecord, token?: string): Promise<void>;
+  getNotionConnection(
+    ownerId: string,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<NotionConnection | null>;
+  saveNotionConnection(
+    connection: NotionConnection,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<void>;
+  deleteNotionConnection(ownerId: string, token?: string, signal?: AbortSignal): Promise<void>;
+  claimNotionSync(
+    record: NotionSyncRecord,
+    token?: string,
+    signal?: AbortSignal,
+  ): Promise<NotionSyncClaim>;
+  completeNotionSync(record: NotionSyncRecord, token?: string, signal?: AbortSignal): Promise<void>;
 }

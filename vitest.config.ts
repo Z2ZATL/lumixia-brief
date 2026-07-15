@@ -7,8 +7,18 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
-      include: ['server/domain/**/*.ts', 'server/security/**/*.ts', 'server/http.ts'],
-      thresholds: { lines: 75, functions: 75, statements: 75, branches: 65 },
+      include: ['server/**/*.ts'],
+      exclude: ['server/dev.ts'],
+      thresholds: {
+        lines: 85,
+        functions: 85,
+        statements: 85,
+        branches: 75,
+        'server/config.ts': { lines: 90, branches: 85 },
+        'server/security/**/*.ts': { lines: 90, branches: 85 },
+        'server/observability/sentry.ts': { lines: 90, branches: 85 },
+        'server/domain/workflow.ts': { lines: 90, branches: 85 },
+      },
     },
   },
 });

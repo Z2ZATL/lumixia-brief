@@ -11,6 +11,9 @@ export function normalizeErrors(error: unknown, _req: Request, _res: Response, n
   if (error instanceof SyntaxError) {
     return next(new HttpError(400, 'INVALID_JSON', 'Request body must be valid JSON.'));
   }
+  if (error && typeof error === 'object' && 'type' in error && error.type === 'entity.too.large') {
+    return next(new HttpError(413, 'PAYLOAD_TOO_LARGE', 'Request body exceeds the 32 KB limit.'));
+  }
   if (error instanceof ProjectVersionConflictError) {
     return next(
       new HttpError(

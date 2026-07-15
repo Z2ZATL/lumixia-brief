@@ -173,6 +173,19 @@ export const projectSchema = z
   .strict();
 export type Project = z.infer<typeof projectSchema>;
 
+export const capabilityStatusSchema = z.object({
+  model: z.object({
+    mode: z.enum(['disabled', 'live', 'mock']),
+    available: z.boolean(),
+  }),
+  notion: z.object({
+    mode: z.enum(['live', 'mock']),
+    available: z.boolean(),
+  }),
+});
+
+export type CapabilityStatus = z.infer<typeof capabilityStatusSchema>;
+
 export const createProjectInputSchema = z
   .object({
     title: z.string().trim().min(2).max(120),

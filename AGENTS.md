@@ -7,7 +7,7 @@ This repository is an OpenAI Build Week submission. Preserve these invariants:
 3. Commit messages must include `Codex-Session:` and `Build-Ledger:` trailers.
 4. Approved brief content is immutable. Editing it creates a new draft version.
 5. The server—not the model—calculates confidence and enforces stop rules.
-6. Production must fail closed unless Clerk MFA, Supabase RLS, live OpenAI, token encryption, and live Notion OAuth are configured.
+6. Production must fail closed unless Clerk MFA, Supabase RLS, token encryption, and live Notion OAuth are configured. The model must be explicitly `disabled` or `live`; production mocks are forbidden.
 7. Database changes are forward-only expand-and-contract migrations through the submission deadline.
 8. Update tests and user-facing documentation with behavior changes.
 

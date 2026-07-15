@@ -12,7 +12,7 @@ import { HttpError } from '../http.js';
 import type { ModelProvider } from '../providers/model.js';
 import type { RequestIdentity } from '../routes/request.js';
 import type { ProjectStore } from '../store/types.js';
-import { getOwnedProject, touch, workflowHttpError } from './support.js';
+import { getOwnedProject, modelHttpError, touch, workflowHttpError } from './support.js';
 
 type EditBriefInput = z.infer<typeof editBriefInputSchema>;
 type RequestChangesInput = z.infer<typeof requestChangesInputSchema>;
@@ -39,12 +39,17 @@ export class BriefService {
     if (latest?.status === 'draft') {
       return { httpStatus: 200 as const, project, brief: latest, idempotent: true };
     }
-    const generated = await this.model.generateBrief(project);
+    let generated: Awaited<ReturnType<ModelProvider['generateBrief']>>;
+    try {
+      generated = await this.model.generateBrief(project, identity.signal);
+    } catch (error) {
+      throw modelHttpError(error);
+    }
     const brief = this.createBrief(project, generated, latest);
     project.briefVersions.push(briefVersionSchema.parse(brief));
     project.workflowStatus = 'needs_review';
     touch(project);
-    const saved = await this.store.saveProject(project, identity.token);
+    const saved = await this.store.saveProject(project, identity.token, identity.signal);
     return { httpStatus: 201 as const, project: saved, brief, idempotent: false };
   }
 
@@ -58,7 +63,10 @@ export class BriefService {
     project.workflowStatus = 'needs_review';
     project.syncStatus = 'not_synced';
     touch(project);
-    return { project: await this.store.saveProject(project, identity.token), brief: editable };
+    return {
+      project: await this.store.saveProject(project, identity.token, identity.signal),
+      brief: editable,
+    };
   }
 
   async approve(identity: RequestIdentity, projectId: string) {
@@ -76,7 +84,10 @@ export class BriefService {
     project.workflowStatus = 'approved';
     project.syncStatus = 'not_synced';
     touch(project);
-    return { project: await this.store.saveProject(project, identity.token), brief: latest };
+    return {
+      project: await this.store.saveProject(project, identity.token, identity.signal),
+      brief: latest,
+    };
   }
 
   async requestChanges(identity: RequestIdentity, projectId: string, input: RequestChangesInput) {
@@ -95,7 +106,7 @@ export class BriefService {
     project.analysis.stopReason = 'needs_human';
     project.analysis.nextQuestion = project.currentQuestion;
     touch(project);
-    return this.store.saveProject(project, identity.token);
+    return this.store.saveProject(project, identity.token, identity.signal);
   }
 
   private createBrief(

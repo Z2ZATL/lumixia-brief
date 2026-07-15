@@ -13,7 +13,7 @@
 1. The browser can render project content but never receives provider or encryption secrets.
 2. Express validates session, MFA, exact origin, rate, size, schema, and ownership before business logic.
 3. Supabase repeats ownership and MFA enforcement with forced RLS; application authorization is not sufficient by itself.
-4. OpenAI receives interview context only on explicit submit/generate and uses `store:false`.
+4. OpenAI receives interview context only on explicit submit/generate in live mode and uses `store:false`; disabled mode creates no OpenAI client or network request.
 5. Notion receives only an approved version after explicit sync.
 6. Monitoring receives operational metadata only.
 

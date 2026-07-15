@@ -12,9 +12,15 @@ import {
   requireMfa,
 } from './http.js';
 import { initializeSentry, mountSentryErrors } from './observability/sentry.js';
-import { MockModelProvider, OpenAIModelProvider, type ModelProvider } from './providers/model.js';
+import {
+  DisabledModelProvider,
+  MockModelProvider,
+  OpenAIModelProvider,
+  type ModelProvider,
+} from './providers/model.js';
 import { LiveNotionProvider, MockNotionProvider, type NotionProvider } from './providers/notion.js';
 import { createBriefRouter } from './routes/briefs.js';
+import { createCapabilityRouter } from './routes/capabilities.js';
 import { createHealthRouter } from './routes/health.js';
 import { createInterviewRouter } from './routes/interview.js';
 import { createNotionRouter } from './routes/notion.js';
@@ -41,11 +47,13 @@ export function createDependencies(config = loadConfig()): AppDependencies {
       ? new SupabaseProjectStore(config.SUPABASE_URL!, config.SUPABASE_PUBLISHABLE_KEY!)
       : new MemoryProjectStore();
   const model =
-    config.PROVIDER_MODE === 'live'
+    config.MODEL_PROVIDER_MODE === 'live'
       ? new OpenAIModelProvider(config.OPENAI_API_KEY!, config.OPENAI_MODEL)
-      : new MockModelProvider();
+      : config.MODEL_PROVIDER_MODE === 'disabled'
+        ? new DisabledModelProvider()
+        : new MockModelProvider();
   const notion =
-    config.PROVIDER_MODE === 'live'
+    config.NOTION_PROVIDER_MODE === 'live'
       ? new LiveNotionProvider(
           config.NOTION_CLIENT_ID!,
           config.NOTION_CLIENT_SECRET!,
@@ -85,6 +93,7 @@ export function createApp(dependencies = createDependencies()) {
 
   const protectedApi = express.Router();
   protectedApi.use(requireMfa(config), perUserRateLimit(config));
+  protectedApi.use(createCapabilityRouter(config));
   protectedApi.use(createProjectRouter(new ProjectService(store)));
   protectedApi.use(createInterviewRouter(new InterviewService(store, model), config));
   protectedApi.use(createBriefRouter(new BriefService(store, model), config));
