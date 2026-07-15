@@ -28,7 +28,7 @@ Complete the backend, provider isolation, correctness, security, coverage, opera
 - React Strict Mode could abort the first capability request before the replacement effect started, producing a browser `requestfailed` event. Request startup now defers one microtask while preserving real unmount cancellation.
 - An interrupted claim-completion write could leave a processed or failed interview answer behind a pending claim. Duplicate recovery now detects the stored answer, repairs the claim, and returns the original terminal result idempotently.
 - Randomized ciphertext and OAuth-state tamper tests replaced the final character with a fixed `x`, which occasionally left an already-`x` value unchanged and made Linux CI flaky. Both regressions now choose a replacement that is guaranteed to differ from the original byte representation.
-- Preview origin still defaulted to localhost even after `APP_ENV` separated Preview from Production. Preview now derives its exact origin from Vercel's deployment URL while Production requires an explicit public application URL.
+- Preview origin still defaulted to localhost even after `APP_ENV` separated Preview from Production. Preview now derives its exact origin from Vercel's stable branch URL (falling back to its deployment URL), while Production requires an explicit public application URL.
 
 ## Surfaces changed
 

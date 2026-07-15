@@ -8,6 +8,7 @@ const environmentSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8787),
   APP_URL: optionalUrl,
   ALLOWED_ORIGIN: optionalUrl,
+  VERCEL_BRANCH_URL: z.string().min(1).optional(),
   VERCEL_URL: z.string().min(1).optional(),
   VERCEL_GIT_COMMIT_SHA: z.string().optional(),
   VITE_CLERK_PUBLISHABLE_KEY: z.string().optional(),
@@ -104,7 +105,12 @@ function assertRuntimeModes(config: EnvironmentConfig): void {
   if (config.APP_ENV === 'preview' && config.MODEL_PROVIDER_MODE !== 'mock') {
     throw new Error('Preview requires the deterministic mock model provider.');
   }
-  if (config.APP_ENV === 'preview' && !config.APP_URL && !config.VERCEL_URL) {
+  if (
+    config.APP_ENV === 'preview' &&
+    !config.APP_URL &&
+    !config.VERCEL_BRANCH_URL &&
+    !config.VERCEL_URL
+  ) {
     throw new Error('Preview requires APP_URL or the Vercel deployment URL.');
   }
   if (config.APP_ENV === 'production' && config.MODEL_PROVIDER_MODE === 'mock') {
@@ -114,8 +120,9 @@ function assertRuntimeModes(config: EnvironmentConfig): void {
 
 function resolveAppUrl(config: EnvironmentConfig): string {
   if (config.APP_URL) return config.APP_URL;
-  if (config.APP_ENV === 'preview' && config.VERCEL_URL) {
-    return `https://${config.VERCEL_URL}`;
+  if (config.APP_ENV === 'preview') {
+    const previewHost = config.VERCEL_BRANCH_URL ?? config.VERCEL_URL;
+    if (previewHost) return `https://${previewHost}`;
   }
   return 'http://localhost:5173';
 }

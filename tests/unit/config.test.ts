@@ -78,12 +78,13 @@ describe('runtime configuration', () => {
       APP_ENV: 'preview',
       APP_URL: undefined,
       ALLOWED_ORIGIN: undefined,
+      VERCEL_BRANCH_URL: 'lumixia-brief-git-feature.vercel.app',
       VERCEL_URL: 'lumixia-brief-preview.vercel.app',
       MODEL_PROVIDER_MODE: 'mock',
     });
     expect(preview.MODEL_PROVIDER_MODE).toBe('mock');
-    expect(preview.APP_URL).toBe('https://lumixia-brief-preview.vercel.app');
-    expect(preview.allowedOrigin).toBe('https://lumixia-brief-preview.vercel.app');
+    expect(preview.APP_URL).toBe('https://lumixia-brief-git-feature.vercel.app');
+    expect(preview.allowedOrigin).toBe('https://lumixia-brief-git-feature.vercel.app');
     expect(preview.authBypass).toBe(false);
     expect(() =>
       loadConfig({
@@ -99,6 +100,7 @@ describe('runtime configuration', () => {
         NODE_ENV: 'production',
         APP_ENV: 'preview',
         APP_URL: undefined,
+        VERCEL_BRANCH_URL: undefined,
         VERCEL_URL: undefined,
         MODEL_PROVIDER_MODE: 'mock',
       }),

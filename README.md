@@ -90,6 +90,8 @@ Then set `DATA_MODE=supabase`, activate Clerk's native Supabase integration, reg
 
 Production startup rejects a mock model, mock Notion, memory data, auth bypass, or missing security/provider credentials. Until the paid model smoke test is authorized, production uses `MODEL_PROVIDER_MODE=disabled`; interview and generation return the explicit `503 MODEL_NOT_CONFIGURED` response without constructing an OpenAI client. Preview uses a deterministic model mock with live Notion and staging Supabase. The protected `GET /api/capabilities` endpoint reports the active model and Notion modes to the signed-in client.
 
+Vercel Preview derives its exact origin from the stable `VERCEL_BRANCH_URL` system variable (falling back to `VERCEL_URL`), while Production requires an explicit `APP_URL`. This keeps CORS and OAuth callbacks aligned across new commits without hard-coding a changing deployment URL.
+
 ## Interview and model contract
 
 One GPT-5.6 Responses API call occurs only after the user submits an answer—never while typing. Interview calls use low reasoning; final brief generation uses medium reasoning. Both use strict Structured Outputs. OpenAI requests set `store:false` and time out after 30 seconds. Only 429/5xx receives one retry.
