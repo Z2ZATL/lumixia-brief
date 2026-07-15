@@ -6,7 +6,7 @@
 **Primary demo:** A founder preparing a brief for Codex<br>
 **Core Codex Session ID:** `019f614d-cd80-76d3-8151-b8271f575a3f`<br>
 **Source:** <https://github.com/Z2ZATL/lumixia-brief><br>
-**Demo URL:** pending production credentials and Vercel handoff
+**Demo URL:** <https://brief.z2zs.space>
 
 Lumixia Brief is a React web app that turns an unclear project idea into a reviewable, versioned one-page brief. GPT-5.6 asks one adaptive question per submitted answer, identifies facts, assumptions, and contradictions, and assesses eight clarity dimensions. The server calculates the score and decides when the brief is ready. A human must review and approve an immutable snapshot before Notion receives anything.
 
@@ -208,4 +208,4 @@ Lumixia Brief is open-source software licensed under the [Apache License 2.0](LI
 
 ## Submission handoff
 
-The project cannot complete OAuth console setup, production secrets, Google/TOTP enrollment, Vercel ownership, UptimeRobot monitors, or YouTube publishing without authenticated owner sessions. These are tracked explicitly in [docs/submission-checklist.md](docs/submission-checklist.md). The public repository requires no private judge invitations.
+Production Google OAuth is configured through the owner-authenticated Google Cloud and Clerk consoles. Interactive Google/TOTP enrollment, real Notion consent, UptimeRobot setup, and YouTube publishing still require the owner at their respective authentication boundaries. These are tracked explicitly in [docs/submission-checklist.md](docs/submission-checklist.md). The public repository requires no private judge invitations.
