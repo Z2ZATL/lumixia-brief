@@ -20,6 +20,7 @@ Core `/feedback` Session ID: `019f614d-cd80-76d3-8151-b8271f575a3f`
 | BL-012 | Provider runtime recovery                   | same                                   | Explicit Clerk keys, least-privilege Supabase readiness RPC, production defect regressions                             | Regression/static/unit/UI/RLS/E2E, build, audit and production     | `b02d365` / [PR #20](https://github.com/Z2ZATL/lumixia-brief/pull/20) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29393613659)                       |
 | BL-013 | Production Google OAuth recovery            | same                                   | Dedicated Google OAuth client, exact Clerk callback, production provider enablement, signed-out smoke test             | Clerk provider status and Google account-chooser boundary          | `e28bfe5` / [PR #22](https://github.com/Z2ZATL/lumixia-brief/pull/22) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29408292783)                       |
 | BL-014 | Backend completion without paid OpenAI      | same                                   | Independent provider modes, disabled-model contract, cancellation, full-backend coverage, operator seed, release gates | 84 unit/API tests, 8 UI, 10 RLS, 6 E2E, Docker, audits and scans   | `0206d63`, `9736e8e` / [PR #23](https://github.com/Z2ZATL/lumixia-brief/pull/23) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29417416110)            |
+| BL-015 | Live integrations and release evidence      | same                                   | Clerk/Supabase environment isolation, Notion OAuth secret rotation, encrypted Vercel configuration                     | Provider portals and encrypted environment acceptance              | pending / [PR #23](https://github.com/Z2ZATL/lumixia-brief/pull/23)                                                                                                  |
 
 Detailed entry: [BL-001–005 core implementation](docs/codex-build-ledger/BL-001-005-core-implementation.md)
 
@@ -40,6 +41,8 @@ Provider recovery entry: [BL-012 provider runtime recovery](docs/codex-build-led
 Google OAuth recovery entry: [BL-013 production Google OAuth recovery](docs/codex-build-ledger/BL-013-production-google-oauth-recovery.md)
 
 Backend completion entry: [BL-014 backend completion without paid OpenAI](docs/codex-build-ledger/BL-014-backend-completion-without-openai.md)
+
+Live integration entry: [BL-015 live integrations and release evidence](docs/codex-build-ledger/BL-015-live-integrations-and-release.md)
 
 ## Required entry fields for future milestones
 
