@@ -36,7 +36,10 @@ Bring the deployed application up to date and resolve the production HTTP 500 re
 
 ## Final release evidence
 
-The merge SHA, production deployment ID, custom-domain health responses, protected-route behavior, and final CI result will be appended after the verified PR is merged and deployed.
+- PR #19 was squash-merged as `d2598da58436e86c1540d7e42e2a3d105eccd7d8` after Required CI [29391688008](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29391688008) passed.
+- Production deployment `dpl_CUusZkZKTzkoGxyb1d1LE8r4uZCL` reported the same merge SHA; `/` and `/api/health` returned HTTP 200.
+- The release verification correctly found two remaining defects: `/api/ready` returned 503 because the new Supabase gateway restricts the PostgREST root, and signed-out protected routes returned 500 because Clerk's publishable key was not passed explicitly.
+- These findings are not represented as a successful release. Their regression tests and fixes are tracked in BL-012 and PR #20.
 
 ## Remaining live-provider handoffs
 
