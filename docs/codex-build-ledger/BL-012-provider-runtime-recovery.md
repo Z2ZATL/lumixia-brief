@@ -3,8 +3,10 @@
 - Date: 2026-07-15
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Commit: `7e6fd9c`
+- Merge commit: `b02d365c4cf11cf6bf5c6a033c0994be40a334ee`
 - PR: [#20](https://github.com/Z2ZATL/lumixia-brief/pull/20)
 - CI: [29393389698](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29393389698)
+- Main CI: [29393613659](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29393613659)
 
 ## Sanitized owner instruction
 
@@ -38,9 +40,17 @@ Continue updating the application until the production runtime is current and th
 
 ## Final release evidence
 
-The merge SHA, production migration, credential pairing check, deployment ID, custom-domain responses, authenticated browser smoke test, runtime logs, and final CI result will be appended after the verified PR is merged and deployed.
+- PR #20 was squash-merged as `b02d365c4cf11cf6bf5c6a033c0994be40a334ee`; Required CI passed for both the PR and the merge commit.
+- Production migration `202607150002_readiness_probe.sql` was applied after migration history confirmed the first two migrations matched production.
+- The current Supabase production publishable key returned HTTP 200 and `true` from `readiness_check()` before its encrypted Vercel environment value was updated.
+- Vercel production deployment `dpl_EjWvo2Pj1hd4gjeoDpbDS3zMidWp` reached `READY`, reported the merge SHA through `/api/health`, and was aliased to `https://brief.z2zs.space`.
+- Final custom-domain checks returned: `/` 200, `/api/health` 200, `/api/ready` 200 with `ready: true`, `/api/projects` 401 `AUTH_REQUIRED`, and `/api/notion/status` 401 `AUTH_REQUIRED`.
+- A fresh browser session rendered the landing page and the Clerk Google sign-in boundary at `/projects` with an empty browser console log.
+- Vercel runtime queries found no HTTP 500 or 503 logs for the final deployment and confirmed HTTP 200 health/readiness invocations.
+- OpenAI was not called during the incident, regression work, or release verification.
 
 ## Remaining live-provider handoffs
 
 - OpenAI live interview and brief generation remain intentionally unverified until API quota is available.
+- The owner must complete the Google/TOTP flow for an authenticated production project-list smoke test; Codex did not enter account credentials.
 - Notion OAuth/page sync remains a separate interactive live-provider test.
