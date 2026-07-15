@@ -16,6 +16,7 @@ Core `/feedback` Session ID: `019f614d-cd80-76d3-8151-b8271f575a3f`
 | BL-008 | Behavior-preserving modular refactor        | same                                   | Bounded routes/services/features, client and CSS boundaries, complexity and function-length gates               | Unit/API/UI/RLS/E2E, coverage, build, audit, Docker and Trivy      | `7645829` / [PR #12](https://github.com/Z2ZATL/lumixia-brief/pull/12) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29364799154)                       |
 | BL-009 | Open-source publication and release handoff | same                                   | Apache-2.0 licensing, pre-publication secret scan, public repository, ordered PR release, live-provider handoff | Full-history Gitleaks, final CI, visibility and merge verification | `09b4696` / [PR #13](https://github.com/Z2ZATL/lumixia-brief/pull/13) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29367175871)                       |
 | BL-010 | Live integration and deployment hardening   | same                                   | Custom domain, Clerk/Supabase/Notion/Vercel setup, native Clerk tokens, clean Vercel Functions build            | Static/unit/UI/RLS/E2E, build, audit, Docker and Vercel Preview    | `43d0307` / [PR #18](https://github.com/Z2ZATL/lumixia-brief/pull/18) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29378145604)                       |
+| BL-011 | Production runtime recovery                | same                                   | Public health isolation from Clerk, credential refresh, post-deploy health gate                                 | Regression/static/unit/UI/RLS/E2E, build, audit and Gitleaks       | `ab0ab71` / [PR #19](https://github.com/Z2ZATL/lumixia-brief/pull/19) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29391478946)                       |
 
 Detailed entry: [BL-001–005 core implementation](docs/codex-build-ledger/BL-001-005-core-implementation.md)
 
@@ -28,6 +29,8 @@ Refactor entry: [BL-008 behavior-preserving modular refactor](docs/codex-build-l
 Open-source entry: [BL-009 open-source publication and release handoff](docs/codex-build-ledger/BL-009-open-source-publication.md)
 
 Integration entry: [BL-010 live integration and deployment hardening](docs/codex-build-ledger/BL-010-live-integration-and-deployment.md)
+
+Recovery entry: [BL-011 production runtime recovery](docs/codex-build-ledger/BL-011-production-runtime-recovery.md)
 
 ## Required entry fields for future milestones
 
