@@ -58,7 +58,7 @@
     "@supabase/supabase-js": "2.110.5",
     "express": "5.2.1",
     "helmet": "^8.1.0",
-    "openai": "6.46.0",
+    "openai": "6.47.0",
     "rate-limiter-flexible": "^8.0.1",
     "react": "19.2.7",
     "react-dom": "19.2.7",
