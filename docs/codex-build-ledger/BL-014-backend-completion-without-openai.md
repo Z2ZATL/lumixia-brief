@@ -27,6 +27,7 @@ Complete the backend, provider isolation, correctness, security, coverage, opera
 - Vercel Preview inherits `NODE_ENV=production`, which previously made Preview follow Production provider rules. `APP_ENV` now owns the deployment classification and invalid combinations fail closed.
 - React Strict Mode could abort the first capability request before the replacement effect started, producing a browser `requestfailed` event. Request startup now defers one microtask while preserving real unmount cancellation.
 - An interrupted claim-completion write could leave a processed or failed interview answer behind a pending claim. Duplicate recovery now detects the stored answer, repairs the claim, and returns the original terminal result idempotently.
+- Randomized ciphertext and OAuth-state tamper tests replaced the final character with a fixed `x`, which occasionally left an already-`x` value unchanged and made Linux CI flaky. Both regressions now choose a replacement that is guaranteed to differ from the original byte representation.
 
 ## Surfaces changed
 

@@ -18,7 +18,8 @@ describe('security primitives', () => {
     const encrypted = encryptSecret('secret-token', key);
     expect(encrypted).not.toContain('secret-token');
     expect(decryptSecret(encrypted, key)).toBe('secret-token');
-    expect(() => decryptSecret(`${encrypted.slice(0, -1)}x`, key)).toThrow();
+    const replacement = encrypted.endsWith('x') ? 'y' : 'x';
+    expect(() => decryptSecret(`${encrypted.slice(0, -1)}${replacement}`, key)).toThrow();
   });
 
   it('rejects invalid encryption keys and malformed token envelopes', () => {
