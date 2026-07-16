@@ -76,12 +76,10 @@ export class NotionService {
       identity.token,
       identity.signal,
     );
-    return `${this.config.APP_URL}/settings?notion=connected`;
   }
 
   rejectOAuth(identity: RequestIdentity, state: string) {
     this.verifyOAuthState(identity, state);
-    throw new HttpError(400, 'NOTION_OAUTH_DENIED', 'Notion authorization was cancelled.');
   }
 
   disconnect(identity: RequestIdentity) {

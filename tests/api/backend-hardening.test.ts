@@ -1,21 +1,29 @@
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
-import { createApp } from '../../server/app.js';
+import { createApp as createRuntimeApp, type AppDependencies } from '../../server/app.js';
 import { loadConfig } from '../../server/config.js';
 import { DisabledModelProvider } from '../../server/providers/model.js';
 import { MockModelProvider } from '../../server/providers/model.js';
 import { MockNotionProvider } from '../../server/providers/notion.js';
 import { MemoryProjectStore } from '../../server/store/memory.js';
 import { makeProject } from '../ui/fixtures.js';
+import { TestIdentityVerifier, userAHeaders } from '../helpers/identity.js';
 
-const headers = { 'x-test-user': 'user-a', 'x-test-aal': 'aal2', origin: 'http://localhost:5173' };
+const headers = userAHeaders;
+
+function createApp(dependencies: Omit<AppDependencies, 'identity'>) {
+  return createRuntimeApp({
+    ...dependencies,
+    config: { ...dependencies.config, AUTH_MODE: 'supabase', VITE_AUTH_MODE: 'supabase' },
+    identity: new TestIdentityVerifier(),
+  });
+}
 
 function disabledApp(store = new MemoryProjectStore()) {
   const config = loadConfig({
     NODE_ENV: 'test',
     APP_URL: 'http://localhost:5173',
     ALLOWED_ORIGIN: 'http://localhost:5173',
-    LOCAL_AUTH_BYPASS: 'true',
     MODEL_PROVIDER_MODE: 'disabled',
     NOTION_PROVIDER_MODE: 'mock',
     DATA_MODE: 'memory',
@@ -34,7 +42,10 @@ function disabledApp(store = new MemoryProjectStore()) {
 describe('backend hardening', () => {
   it('protects capabilities and reports the disabled model explicitly', async () => {
     const { app } = disabledApp();
-    await request(app).get('/api/capabilities').set('x-test-aal', 'aal1').expect(403);
+    await request(app)
+      .get('/api/capabilities')
+      .set('authorization', 'Bearer test-aal1')
+      .expect(403);
     await request(app)
       .get('/api/capabilities')
       .set(headers)
@@ -76,23 +87,24 @@ describe('backend hardening', () => {
     await request(app).get('/api/does-not-exist').set(headers).expect(404);
   });
 
-  it('validates OAuth callback queries and maps consent denial to a safe 4xx', async () => {
+  it('validates OAuth callback bodies and handles consent denial without browser errors', async () => {
     const { app } = disabledApp();
-    const missing = await request(app).get('/api/notion/callback').set(headers).expect(400);
+    const missing = await request(app)
+      .post('/api/notion/callback')
+      .set(headers)
+      .send({})
+      .expect(400);
     expect(missing.body.error.code).toBe('INVALID_INPUT');
     const denied = await request(app)
-      .get('/api/notion/callback')
-      .query({ state: 'mock-state', error: 'access_denied', error_description: 'private detail' })
+      .post('/api/notion/callback')
       .set(headers)
-      .expect(400);
-    expect(denied.body.error).toMatchObject({
-      code: 'NOTION_OAUTH_DENIED',
-      message: 'Notion authorization was cancelled.',
-    });
-    expect(JSON.stringify(denied.body)).not.toContain('private detail');
+      .send({ result: 'denied', state: 'mock-state', error: 'access_denied' })
+      .expect(200);
+    expect(denied.body).toEqual({ connected: false, cancelled: true });
     await request(app)
-      .get('/api/notion/callback?state=one&state=two&code=code')
+      .post('/api/notion/callback')
       .set(headers)
+      .send({ result: 'success', state: 'one' })
       .expect(400);
   });
 
@@ -188,7 +200,6 @@ describe('backend hardening', () => {
       NODE_ENV: 'test',
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
-      LOCAL_AUTH_BYPASS: 'true',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',

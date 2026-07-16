@@ -32,12 +32,13 @@
     "lint": "eslint . --max-warnings=0",
     "knip": "knip",
     "css:check": "node scripts/check-css.mjs",
+    "auth:check": "node scripts/check-auth-residue.mjs",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest run --config vitest.ui.config.ts",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "node scripts/run-integration.mjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "supabase:start": "supabase start",
@@ -48,12 +49,11 @@
     "audit:all": "npm audit --audit-level=high",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "evidence": "tsx scripts/write-ci-evidence.ts",
-    "quality:static": "npm run format:check && npm run lint && npm run typecheck && npm run knip && npm run css:check",
+    "evidence:integration": "tsx scripts/write-integration-evidence.ts",
+    "quality:static": "npm run format:check && npm run lint && npm run typecheck && npm run knip && npm run css:check && npm run auth:check",
     "quality": "npm run quality:static && npm run test:coverage && npm run test:ui && npm run build && npm run bundle:check && npm run audit:all && npm run audit:prod"
   },
   "dependencies": {
-    "@clerk/express": "2.1.41",
-    "@clerk/react": "6.12.3",
     "@sentry/node": "10.65.0",
     "@sentry/react": "10.65.0",
     "@supabase/supabase-js": "2.110.5",
@@ -95,5 +95,8 @@
     "typescript-eslint": "^8.56.1",
     "vite": "8.1.4",
     "vitest": "^4.0.18"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
   }
 }

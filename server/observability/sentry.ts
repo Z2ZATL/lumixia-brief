@@ -9,9 +9,23 @@ export function scrubSentryEvent<T extends Sentry.Event>(event: T): T {
   delete event.request?.headers;
   delete event.request?.query_string;
   delete event.user;
+  delete event.contexts;
+  delete event.extra;
+  scrubMessage(event);
   if (event.request?.url) event.request.url = sanitizeTelemetryText(event.request.url);
   if (event.transaction) event.transaction = sanitizeTelemetryText(event.transaction);
+  for (const value of event.exception?.values ?? []) {
+    if (value.value) value.value = sanitizeTelemetryText(value.value);
+  }
+  for (const span of event.spans ?? []) {
+    span.data = {};
+    if (span.description) span.description = sanitizeTelemetryText(span.description);
+  }
   return event;
+}
+
+function scrubMessage(event: { message?: string }): void {
+  if (event.message) event.message = sanitizeTelemetryText(event.message);
 }
 
 export function scrubSentryBreadcrumb(breadcrumb: Sentry.Breadcrumb) {

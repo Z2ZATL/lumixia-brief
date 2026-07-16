@@ -182,11 +182,67 @@ button:disabled {
     transform: rotate(360deg);
   }
 }
-.center-stage,
-.auth-stage {
+.center-stage {
   display: grid;
   min-height: 75vh;
   place-items: center;
+}
+.auth-shell {
+  min-height: 100vh;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 75% 20%, rgba(226, 111, 81, 0.12), transparent 36%), var(--paper);
+}
+.auth-header {
+  display: flex;
+  max-width: 1180px;
+  align-items: center;
+  justify-content: space-between;
+  margin: auto;
+}
+.auth-card {
+  max-width: 510px;
+  margin: 12vh auto 0;
+  padding: 52px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 25px 70px rgba(29, 65, 55, 0.1);
+}
+.auth-card h1 {
+  margin: 15px 0;
+  font-family: Georgia, serif;
+  font-size: 46px;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+}
+.auth-card p,
+.callback-stage p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+.auth-card .alert {
+  margin-top: 20px;
+}
+.google-button span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: #1a73e8;
+  background: #fff;
+  font-weight: 900;
+}
+.callback-stage {
+  display: flex;
+  min-height: 75vh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+  padding: 30px;
+  text-align: center;
 }
 
 /* Landing */
@@ -508,6 +564,34 @@ button:disabled {
   align-items: center;
   justify-content: flex-end;
   gap: 13px;
+}
+.account-controls {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.account-chip {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--forest);
+  border-radius: 50%;
+  color: #fff;
+  background: var(--forest);
+  font-size: 12px;
+  font-weight: 800;
+}
+.sign-out-button {
+  padding: 7px 9px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+.sign-out-button:hover {
+  color: var(--forest);
 }
 .demo-pill {
   padding: 6px 9px;
@@ -1522,6 +1606,110 @@ form label + label {
   margin: 50px auto;
   padding: 30px;
 }
+.security-card,
+.security-manager {
+  padding: 34px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 20px 60px rgba(29, 65, 55, 0.08);
+}
+.totp-enrollment {
+  display: grid;
+  gap: 22px;
+}
+.totp-enrollment img {
+  width: min(100%, 270px);
+  margin: auto;
+  border: 12px solid #fff;
+  border-radius: 7px;
+}
+.manual-secret {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.manual-secret code {
+  overflow-wrap: anywhere;
+  padding: 12px;
+  border-radius: 4px;
+  color: var(--forest);
+  background: #e5ede8;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+.totp-form {
+  display: grid;
+  gap: 12px;
+}
+.totp-form input {
+  font-size: 24px;
+  letter-spacing: 0.28em;
+  text-align: center;
+}
+.auth-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.security-manager-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.security-manager-heading h2 {
+  margin: 0 0 6px;
+  font-family: Georgia, serif;
+  font-size: 30px;
+  font-weight: 400;
+}
+.security-manager-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+.backup-callout {
+  margin: 25px 0;
+  padding: 14px 16px;
+  border-left: 3px solid var(--coral);
+  color: #6d4b13;
+  background: #fff5db;
+  font-size: 13px;
+}
+.factor-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 25px;
+}
+.factor-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 15px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+}
+.factor-row div {
+  display: grid;
+  gap: 4px;
+}
+.factor-row small {
+  color: var(--muted);
+}
+.factor-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--forest);
+  font-size: 12px;
+  font-weight: 800;
+}
 .security-copy h1 {
   font-family: Georgia, serif;
   font-size: 48px;
@@ -1587,6 +1775,16 @@ form label + label {
 }
 
 @media (max-width: 600px) {
+  .auth-shell {
+    padding: 20px;
+  }
+  .auth-card {
+    margin-top: 8vh;
+    padding: 32px 24px;
+  }
+  .auth-card h1 {
+    font-size: 38px;
+  }
   .landing-nav {
     height: 70px;
     padding: 0 18px;
@@ -1681,6 +1879,23 @@ form label + label {
   }
   .demo-pill {
     display: none;
+  }
+  .sign-out-button {
+    display: none;
+  }
+  .factor-row {
+    grid-template-columns: auto 1fr;
+  }
+  .factor-row .button {
+    grid-column: span 2;
+  }
+  .security-manager,
+  .security-card {
+    padding: 24px;
+  }
+  .security-manager-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .page-shell {
     padding: 45px 18px 90px;

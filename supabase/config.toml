@@ -23,7 +23,26 @@ port = 54323
 [auth]
 enabled = true
 site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173/**"]
+additional_redirect_urls = ["http://localhost:5173/auth/callback", "http://127.0.0.1:5173/auth/callback"]
+
+[auth.mfa]
+max_enrolled_factors = 2
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.mfa.phone]
+enroll_enabled = false
+verify_enabled = false
+
+# Hosted staging/production enable Google in their isolated Supabase dashboards.
+# Keep local Google disabled so CI and the one-command demo never require an OAuth secret.
+[auth.external.google]
+enabled = false
+client_id = ""
+secret = ""
+skip_nonce_check = false
 
 [analytics]
 enabled = false

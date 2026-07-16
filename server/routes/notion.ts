@@ -6,14 +6,18 @@ import { perUserRateLimit } from '../http.js';
 import { NotionService } from '../services/notion.js';
 import { asyncRoute, projectId, requestIdentity, validateBody } from './request.js';
 
-const oauthCallbackQuerySchema = z
-  .object({
+const oauthCallbackBodySchema = z.discriminatedUnion('result', [
+  z.object({
+    result: z.literal('success'),
     state: z.string().min(1).max(4000),
-    code: z.string().min(1).max(4000).optional(),
-    error: z.string().min(1).max(200).optional(),
-  })
-  .passthrough()
-  .refine((query) => Boolean(query.code) || Boolean(query.error));
+    code: z.string().min(1).max(4000),
+  }),
+  z.object({
+    result: z.literal('denied'),
+    state: z.string().min(1).max(4000),
+    error: z.literal('access_denied'),
+  }),
+]);
 
 export function createNotionRouter(service: NotionService, config: AppConfig) {
   const router = Router();
@@ -32,12 +36,18 @@ export function createNotionRouter(service: NotionService, config: AppConfig) {
       res.json({ pages: await service.listPages(requestIdentity(req)) });
     }),
   );
-  router.get(
+  router.post(
     '/notion/callback',
+    validateBody(oauthCallbackBodySchema),
     asyncRoute(async (req, res) => {
-      const query = oauthCallbackQuerySchema.parse(req.query);
-      if (query.error) service.rejectOAuth(requestIdentity(req), query.state);
-      res.redirect(await service.completeOAuth(requestIdentity(req), query.code!, query.state));
+      const input = oauthCallbackBodySchema.parse(req.body);
+      if (input.result === 'denied') {
+        service.rejectOAuth(requestIdentity(req), input.state);
+        res.json({ connected: false, cancelled: true });
+        return;
+      }
+      await service.completeOAuth(requestIdentity(req), input.code, input.state);
+      res.json({ connected: true, cancelled: false });
     }),
   );
   router.delete(

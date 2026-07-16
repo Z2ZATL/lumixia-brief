@@ -2,11 +2,11 @@
 
 ## Environments
 
-| Environment | Clerk                       | Supabase             | Vercel              | Model / Notion  |
-| ----------- | --------------------------- | -------------------- | ------------------- | --------------- |
-| Local       | bypass or Clerk development | memory/local Docker  | native Vite/Express | mock / mock     |
-| Preview     | Clerk development           | dedicated staging    | PR preview          | mock / live     |
-| Production  | Clerk production            | dedicated production | protected main      | disabled / live |
+| Environment | Authentication             | Supabase             | Vercel              | Model / Notion  |
+| ----------- | -------------------------- | -------------------- | ------------------- | --------------- |
+| Local       | isolated safe demo or Auth | memory/local Docker  | native Vite/Express | mock / mock     |
+| Preview     | Google + native TOTP       | dedicated staging    | PR preview          | mock / live     |
+| Production  | Google + native TOTP       | dedicated production | protected main      | disabled / live |
 
 Never point preview at production Supabase or reuse production token-encryption keys.
 
@@ -56,7 +56,7 @@ Configure five-minute UptimeRobot monitors for `/`, `/api/health`, and `/api/rea
 
 - Empty database migration and RLS test.
 - Desktop and 390px Playwright path.
-- Real Google/TOTP enrollment and backup-code confirmation.
+- Real Google/TOTP enrollment and backup-factor confirmation.
 - Notion consent, page selection, retry, and expired-token refresh.
 - OpenAI refusal/timeout/malformed-output fixtures.
 - Vercel rollback rehearsal.

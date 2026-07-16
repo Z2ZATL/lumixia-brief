@@ -28,7 +28,7 @@ function fakeFactory(fromResults: SupabaseResult[], rpcResults: SupabaseResult[]
   return { client, factory };
 }
 
-const token = 'test-clerk-jwt';
+const token = 'test-supabase-jwt';
 
 describe('SupabaseProjectStore adapter', () => {
   it('combines request cancellation with Supabase operation signals', async () => {

@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.7
 FROM --platform=$BUILDPLATFORM node:24.16.0-bookworm-slim AS build
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund --loglevel=error
@@ -7,7 +8,7 @@ COPY . .
 RUN npm run typecheck && npm run test && npm run build
 
 FROM --platform=$TARGETPLATFORM node:24.16.0-bookworm-slim AS runtime
-ENV NODE_ENV=production PORT=8787
+ENV NODE_ENV=production PORT=8787 NPM_CONFIG_UPDATE_NOTIFIER=false
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error \

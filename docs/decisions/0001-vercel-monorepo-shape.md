@@ -13,6 +13,6 @@ Keep a single npm repository. Vite builds the React client to `dist`; Vercel rew
 
 ## Consequences
 
-- One deployment and origin simplify Clerk, Notion callbacks, CORS, and the demo.
+- One deployment and origin simplify Supabase Auth, Notion callbacks, CORS, and the demo.
 - Express endpoints share one function bundle, so provider/database calls must stay bounded.
 - Static assets must remain in Vite rather than Express.

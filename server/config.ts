@@ -11,10 +11,10 @@ const environmentSchema = z.object({
   VERCEL_BRANCH_URL: z.string().min(1).optional(),
   VERCEL_URL: z.string().min(1).optional(),
   VERCEL_GIT_COMMIT_SHA: z.string().optional(),
-  VITE_CLERK_PUBLISHABLE_KEY: z.string().optional(),
-  CLERK_SECRET_KEY: z.string().optional(),
-  SUPABASE_URL: optionalUrl,
-  SUPABASE_PUBLISHABLE_KEY: z.string().optional(),
+  AUTH_MODE: z.enum(['local-demo', 'supabase']).default('local-demo'),
+  VITE_AUTH_MODE: z.enum(['local-demo', 'supabase']).default('local-demo'),
+  VITE_SUPABASE_URL: optionalUrl,
+  VITE_SUPABASE_PUBLISHABLE_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-5.6'),
   NOTION_CLIENT_ID: z.string().optional(),
@@ -31,21 +31,18 @@ const environmentSchema = z.object({
   MODEL_PROVIDER_MODE: z.enum(['disabled', 'live', 'mock']).default('mock'),
   NOTION_PROVIDER_MODE: z.enum(['live', 'mock']).default('mock'),
   DATA_MODE: z.enum(['supabase', 'memory']).default('memory'),
-  LOCAL_AUTH_BYPASS: z.enum(['true', 'false']).default('false'),
 });
 type EnvironmentConfig = z.infer<typeof environmentSchema>;
 type RequiredConfigKey =
   | 'APP_URL'
-  | 'CLERK_SECRET_KEY'
   | 'NOTION_CLIENT_ID'
   | 'NOTION_CLIENT_SECRET'
   | 'NOTION_REDIRECT_URI'
   | 'OAUTH_STATE_SECRET'
   | 'OPENAI_API_KEY'
-  | 'SUPABASE_PUBLISHABLE_KEY'
-  | 'SUPABASE_URL'
   | 'TOKEN_ENCRYPTION_KEY'
-  | 'VITE_CLERK_PUBLISHABLE_KEY';
+  | 'VITE_SUPABASE_PUBLISHABLE_KEY'
+  | 'VITE_SUPABASE_URL';
 
 export type AppConfig = ReturnType<typeof loadConfig>;
 
@@ -61,19 +58,14 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     APP_URL: appUrl,
     allowedOrigin: config.ALLOWED_ORIGIN ?? appUrl,
     deploymentSha: config.VERCEL_GIT_COMMIT_SHA ?? 'local',
-    authBypass:
-      config.LOCAL_AUTH_BYPASS === 'true' &&
-      config.APP_ENV === 'local' &&
-      config.NODE_ENV !== 'production',
     modelAvailable: config.MODEL_PROVIDER_MODE !== 'disabled',
   };
 }
 
 function requiredConfigKeys(config: EnvironmentConfig): RequiredConfigKey[] {
+  const needsSupabase = config.DATA_MODE === 'supabase' || config.AUTH_MODE === 'supabase';
   return [
-    ...(config.DATA_MODE === 'supabase'
-      ? (['SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY'] as const)
-      : []),
+    ...(needsSupabase ? (['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY'] as const) : []),
     ...(config.MODEL_PROVIDER_MODE === 'live' ? (['OPENAI_API_KEY'] as const) : []),
     ...(config.NOTION_PROVIDER_MODE === 'live'
       ? ([
@@ -84,9 +76,6 @@ function requiredConfigKeys(config: EnvironmentConfig): RequiredConfigKey[] {
           'TOKEN_ENCRYPTION_KEY',
         ] as const)
       : []),
-    ...(config.APP_ENV !== 'local'
-      ? (['CLERK_SECRET_KEY', 'VITE_CLERK_PUBLISHABLE_KEY'] as const)
-      : []),
     ...(config.APP_ENV === 'production' ? (['APP_URL'] as const) : []),
   ];
 }
@@ -95,9 +84,10 @@ function assertRuntimeModes(config: EnvironmentConfig): void {
   if (config.NODE_ENV === 'production' && config.APP_ENV === 'local') {
     throw new Error('APP_ENV must be preview or production when NODE_ENV is production.');
   }
+  assertAuthenticationModes(config);
   if (config.APP_ENV === 'local') return;
-  if (config.LOCAL_AUTH_BYPASS === 'true') {
-    throw new Error('LOCAL_AUTH_BYPASS is forbidden outside local development.');
+  if (config.AUTH_MODE !== 'supabase') {
+    throw new Error('Preview and production require Supabase authentication.');
   }
   if (config.NOTION_PROVIDER_MODE !== 'live' || config.DATA_MODE !== 'supabase') {
     throw new Error('Preview and production require live Notion and Supabase data.');
@@ -115,6 +105,12 @@ function assertRuntimeModes(config: EnvironmentConfig): void {
   }
   if (config.APP_ENV === 'production' && config.MODEL_PROVIDER_MODE === 'mock') {
     throw new Error('Production forbids a mock model provider.');
+  }
+}
+
+function assertAuthenticationModes(config: EnvironmentConfig): void {
+  if (config.AUTH_MODE !== config.VITE_AUTH_MODE) {
+    throw new Error('AUTH_MODE and VITE_AUTH_MODE must match.');
   }
 }
 

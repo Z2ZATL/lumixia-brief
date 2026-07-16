@@ -35,5 +35,23 @@ export default defineConfig(({ mode }) => ({
       mode !== 'production' &&
       process.env['APP_ENV'] !== 'production' &&
       process.env['VERCEL_ENV'] !== 'production',
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'supabase',
+              test: /node_modules[\\/]@supabase[\\/]/,
+              priority: 20,
+            },
+            {
+              name: 'react',
+              test: /node_modules[\\/](?:react|react-dom|react-router)[\\/]/,
+              priority: 10,
+            },
+          ],
+        },
+      },
+    },
   },
 }));

@@ -1,2 +1,2 @@
--- Demo projects are created through scripts/seed-demo.ts so ownership always matches the active Clerk user.
+-- Demo projects are created through the operator seed so ownership matches the active Supabase user.
 select 1;

@@ -20,6 +20,7 @@ describe('Sentry privacy policy', () => {
 
   it('removes request content, identity, query strings, and identifiers', () => {
     const event = scrubSentryEvent({
+      message: 'user private@example.com token=secret',
       request: {
         data: { answer: 'private answer' },
         cookies: { session: 'secret' },
@@ -29,15 +30,36 @@ describe('Sentry privacy policy', () => {
       },
       transaction: '/api/projects/11111111-1111-4111-8111-111111111111',
       user: { email: 'private@example.com' },
+      contexts: { private: { answer: 'private answer' } },
+      extra: { authorization: 'Bearer secret' },
+      exception: {
+        values: [{ value: 'user private@example.com code=secret' }],
+      },
+      spans: [
+        {
+          span_id: '1234567890abcdef',
+          trace_id: '1234567890abcdef1234567890abcdef',
+          start_timestamp: 1,
+          timestamp: 2,
+          data: { answer: 'private answer' },
+          description: '/api/projects/11111111-1111-4111-8111-111111111111?state=secret',
+        },
+      ],
     } satisfies Sentry.Event);
     expect(event.request).not.toHaveProperty('data');
     expect(event.request).not.toHaveProperty('headers');
     expect(event.request).not.toHaveProperty('cookies');
     expect(event.request).not.toHaveProperty('query_string');
     expect(event).not.toHaveProperty('user');
+    expect(event).not.toHaveProperty('contexts');
+    expect(event).not.toHaveProperty('extra');
+    expect(event.message).toBe('user [redacted-email] token=[redacted]');
     expect(event.request?.url).not.toContain('code=');
     expect(event.request?.url).not.toContain('11111111');
     expect(event.transaction).toContain('/:id');
+    expect(event.exception?.values?.[0]?.value).toBe('user [redacted-email] code=[redacted]');
+    expect(event.spans?.[0]?.data).toEqual({});
+    expect(event.spans?.[0]?.description).toBe('/api/projects/:id');
   });
 
   it('drops breadcrumb data and sanitizes its message', () => {
