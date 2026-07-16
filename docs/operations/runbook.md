@@ -10,6 +10,13 @@
 
 Never point preview at production Supabase or reuse production token-encryption keys.
 
+### Hosted Supabase configuration safety
+
+- Never run `supabase config push` against a hosted project from the local development config. Create an isolated, environment-specific config containing the exact hosted URLs and provider settings.
+- Every local or hosted config must set `[storage.vector] enabled = false`. Vector Storage, SMS MFA, and other paid features require an explicit owner decision and are outside the Build Week scope.
+- Review the CLI diff before confirming, then verify Auth URLs, email sign-in, TOTP, phone MFA, and Storage in the dashboard after every change.
+- A payment-required response is a failed configuration attempt, not permission to upgrade. Stop, restore the intended free configuration, and record a sanitized regression test.
+
 ## Initial GitHub/Vercel setup
 
 1. Protect `main`: pull request required, branch up to date, **Required CI**, resolved conversations, linear history, no force push; no required reviewer for a solo team.

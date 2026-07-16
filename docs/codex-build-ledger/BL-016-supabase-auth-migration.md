@@ -4,7 +4,7 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled during this milestone)
-- Commits: `2440e15`, `c725c20`
+- Commits: `2440e15`, `c725c20`, `ac34101`
 - PR: [#24](https://github.com/Z2ZATL/lumixia-brief/pull/24) (draft, stacked on backend PR #23)
 - CI: [run 29497134950](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29497134950) — Required CI passed
 
@@ -24,6 +24,7 @@ Replace the legacy identity provider with native Supabase Google OAuth and manda
 - Added deterministic vendor chunking so the initial application entry is below the established bundle ceiling without suppressing build warnings.
 - Replaced the CI Supabase status artifact, which could contain local credentials, with a sanitized pass summary containing no keys, tokens, identities, or provider payloads.
 - Kept the paid OpenAI provider disabled and made no live OpenAI request.
+- Added an explicit free-tier guard that keeps Supabase Vector Storage disabled and a regression test that fails if the guard is removed.
 
 ## Files and surfaces changed
 
@@ -47,10 +48,14 @@ Replace the legacy identity provider with native Supabase Google OAuth and manda
 
 ## Hosted preview evidence
 
-- Vercel Preview deployed commit `c725c20a96e076f699abc10b9172efaa9744483d` successfully.
+- Vercel Preview deployed commit `ac341011355c1415e3e179a9c2d10ff33ab7521c` successfully.
 - `/api/health` returned `200` with the deployed SHA and `/api/ready` returned `200`.
 - A signed-out request to `/api/projects` returned the expected `401 AUTH_REQUIRED` response.
 - New native Supabase Auth public variables are configured for Preview and Production. Legacy encrypted variables remain temporarily available only for rollback during the 24-hour soak.
+- The forward-only native-AAL2 migration is applied to both hosted Supabase projects. Site URLs, exact callback allowlists, TOTP with at most two factors, disabled phone MFA, disabled email sign-in, and ES256 signing keys were verified.
+- `preview.brief.z2zs.space` resolves globally to Vercel and has a valid Vercel alias and certificate.
+- Google Cloud reported no billing account for the project. Supabase, Cloudflare, and Vercel remained on free plans; no paid upgrade was accepted.
+- A hosted configuration attempt exposed that the CLI could propose paid Vector Storage by default. The provider rejected it with a payment-required response, no upgrade occurred, the staging Auth values were restored immediately, and the repository now contains an explicit disable guard plus regression coverage.
 
 ## Handoffs and remaining gates
 
