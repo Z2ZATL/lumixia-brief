@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createDependencies } from '../../server/app.js';
 import { loadConfig } from '../../server/config.js';
@@ -33,6 +35,11 @@ const production = {
 } satisfies NodeJS.ProcessEnv;
 
 describe('runtime configuration', () => {
+  it('keeps paid Supabase Vector Storage explicitly disabled', () => {
+    const supabaseConfig = readFileSync(resolve('supabase/config.toml'), 'utf8');
+    expect(supabaseConfig).toMatch(/\[storage\.vector\]\s+enabled = false/u);
+  });
+
   it('allows an explicitly disabled model in production without an OpenAI key', () => {
     const config = loadConfig({ ...production, MODEL_PROVIDER_MODE: 'disabled' });
     expect(config.modelAvailable).toBe(false);

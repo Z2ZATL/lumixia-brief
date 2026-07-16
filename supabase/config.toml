@@ -20,6 +20,11 @@ sql_paths = ["./seed.sql"]
 enabled = true
 port = 54323
 
+# Keep paid Vector Storage disabled in every config derived from this local file.
+# Hosted changes must use an environment-specific config that preserves this guard.
+[storage.vector]
+enabled = false
+
 [auth]
 enabled = true
 site_url = "http://localhost:5173"
