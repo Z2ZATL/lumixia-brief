@@ -30,12 +30,18 @@ Configure and verify the non-OpenAI live integration path, preserve the security
 - Supabase staging and production project configuration
 - Build Ledger evidence only; no application behavior changed in this checkpoint
 
+## Regression defect found during this milestone
+
+- The OAuth-state tamper regression changed the final Base64URL character. A different final character can decode to the same bytes when it changes only unused padding bits, so Linux CI intermittently accepted the supposedly tampered signature. The test now changes the first encoded signature character, which always changes decoded signature bits while preserving a syntactically valid state.
+
 ## Verification completed
 
 - Notion developer portal confirmed the connection update and all three exact redirect URLs.
 - Vercel accepted the rotated Notion client secret as a sensitive variable for Preview and Production.
 - The captured secret matched the expected provider format before storage; its value was not printed to a repository file, terminal log, or evidence artifact.
 - The transient browser clipboard value was cleared after storage.
+- The focused Notion provider suite passed 10 consecutive runs after the deterministic tamper fix.
+- ESLint with zero warnings, strict TypeScript, the complete 84-test unit/API/provider suite, formatting, and diff checks passed locally.
 - OpenAI network requests: zero.
 
 ## Remaining milestone gates
