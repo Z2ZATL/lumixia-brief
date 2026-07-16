@@ -23,11 +23,11 @@ Lumixia Brief is a React web app that turns an unclear project idea into a revie
 
 ```mermaid
 flowchart LR
-  U["Founder / PM / Agency"] --> C["Clerk Google OAuth + TOTP"]
+  U["Founder / PM / Agency"] --> C["Supabase Auth\nGoogle OAuth + TOTP"]
   C --> V["Vite React on Vercel CDN"]
   V --> E["Express /api function"]
   E --> O["OpenAI Responses API\nGPT-5.6, store:false"]
-  E --> S["Supabase Postgres\nClerk JWT + owner/MFA RLS"]
+  E --> S["Supabase Postgres\nNative JWT + owner/AAL2 RLS"]
   E --> N["Notion Public OAuth\nAES-256-GCM tokens"]
   E --> M["Sanitized logs + Sentry\nno content or PII"]
 ```
@@ -36,7 +36,7 @@ flowchart LR
 - `api/index.ts` — Vercel Express entrypoint.
 - `server/domain/` — deterministic confidence, question priority, stop rules, and workflow invariants.
 - `server/providers/` — live/mock OpenAI and Notion adapters.
-- `server/store/` — in-memory test adapter and Supabase adapter using the current Clerk JWT.
+- `server/store/` — in-memory test adapter and Supabase adapter using the verified Supabase JWT.
 - `shared/contracts.ts` — strict Zod contracts shared by client and server.
 - `supabase/migrations/` — forward-only schema and forced RLS policies.
 - `tests/` — unit, API, Supabase RLS integration, and Playwright demo tests.
@@ -64,7 +64,7 @@ npm run supabase:start
 npm run supabase:reset
 ```
 
-Then set `DATA_MODE=supabase`, activate Clerk's native Supabase integration, register the Clerk domain as a Supabase third-party auth provider, and provide the local Supabase URL/key.
+Then set `AUTH_MODE=supabase`, `VITE_AUTH_MODE=supabase`, and `DATA_MODE=supabase`, and provide the local Supabase URL/publishable key. Local Google OAuth remains off unless you explicitly add non-production credentials; CI creates synthetic local Auth users without adding a service-role key to the app runtime.
 
 ## Environment variables
 
@@ -72,14 +72,12 @@ Then set `DATA_MODE=supabase`, activate Clerk's native Supabase integration, reg
 | ------------------------------------------ | -------------- | -------------------------------------------------------------- |
 | `APP_ENV`                                  | `local`        | `preview` or `production`; controls fail-closed validation     |
 | `APP_URL`, `ALLOWED_ORIGIN`                | local URL      | Exact public URL and exact accepted browser origin             |
-| `LOCAL_AUTH_BYPASS`                        | `true`         | Forbidden in production                                        |
+| `AUTH_MODE`, `VITE_AUTH_MODE`              | `local-demo`   | Must both be `supabase` in Preview/Production                  |
 | `MODEL_PROVIDER_MODE`                      | `mock`         | `disabled`, `mock`, or `live`; production forbids `mock`       |
 | `NOTION_PROVIDER_MODE`                     | `mock`         | `mock` locally and `live` in preview/production                |
 | `DATA_MODE`                                | `memory`       | Must be `supabase` in production                               |
-| `VITE_CLERK_PUBLISHABLE_KEY`               | empty          | Clerk frontend key                                             |
-| `CLERK_SECRET_KEY`                         | empty          | Clerk Express verification key                                 |
-| `SUPABASE_URL`                             | empty          | Separate staging/production Supabase project URL               |
-| `SUPABASE_PUBLISHABLE_KEY`                 | empty          | Publishable key; requests also carry the active Clerk JWT      |
+| `VITE_SUPABASE_URL`                        | empty          | Separate staging/production Supabase project URL               |
+| `VITE_SUPABASE_PUBLISHABLE_KEY`            | empty          | Public API key; protected requests also carry the active JWT   |
 | `OPENAI_API_KEY`                           | empty          | Required only when `MODEL_PROVIDER_MODE=live`                  |
 | `OPENAI_MODEL`                             | `gpt-5.6`      | Interview and brief model                                      |
 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | empty          | Notion public integration credentials                          |
@@ -137,7 +135,7 @@ Notion uses per-user public OAuth. Access and refresh tokens are encrypted at re
 
 ## Privacy and security model
 
-- Google-only sign-in is configured in Clerk; all product routes require TOTP/AAL2. Backup codes are enabled in Clerk.
+- Supabase Auth is configured for Google-only sign-in; all product routes require native TOTP/AAL2. Users can enroll a second TOTP factor on another device for recovery.
 - The Express layer verifies authentication, second-factor claims, input schemas, exact origins, body limits, ownership, request rate, and timeouts.
 - Supabase forces RLS on every user table. Policies require both JWT `sub = owner_id` and an AAL2/TOTP claim.
 - Data remains until the owner deletes the project. Project deletion cascades answer claims and sync records.
@@ -172,7 +170,7 @@ The coverage gate measures every `server/**/*.ts` file except the process entryp
 ## CI/CD and environments
 
 - Pull requests: format, lint, typecheck, unit/API contracts, empty-DB migration, two-user MFA RLS, Playwright desktop/mobile, production build, Linux/amd64 Docker build, full and production audits, secret scan, critical image scan, and SBOM.
-- Preview: Vercel Git integration, Clerk development instance, Supabase staging, preview-only secrets.
+- Preview: Vercel Git integration, Supabase Auth/database staging, and preview-only secrets.
 - Production: protected `main`, required **Required CI**, manual `production` environment approval, and a forward-only Supabase migration for the exact main SHA. Vercel Git integration is the only deployment path; GitHub Actions does not build or deploy a second copy.
 - Set repository variable `PRODUCTION_RELEASE_ENABLED=true` only after every production secret and environment protection rule exists.
 - Configure Vercel Deployment Checks to require the GitHub **Required CI** check before promotion.
@@ -185,7 +183,7 @@ An operator can seed the approved, clearly labeled founder example without OpenA
 
 ```powershell
 $env:SUPABASE_DB_URL = '<operator database URL>'
-$env:LUMIXIA_SEED_OWNER_ID = '<authenticated Clerk owner ID>'
+$env:LUMIXIA_SEED_OWNER_ID = '<authenticated Supabase user UUID>'
 npm run seed:founder -- --environment=staging
 # Production additionally requires: --confirm-production
 ```
@@ -209,15 +207,15 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 
 - Notion sync creates a child page; arbitrary database-property mapping is intentionally out of scope.
 - Confidence measures interview completeness, not factual truth or model accuracy.
-- Google-only login and MFA enforcement depend on completing the documented Clerk dashboard configuration.
+- Google-only login depends on completing the documented Google and Supabase Auth provider configuration.
 - Local mock mode is deterministic evidence for development, not a substitute for the live provider smoke tests.
 - Vercel Hobby is appropriate only for this personal, non-commercial prototype; review the plan before commercial launch.
 
 ## Troubleshooting
 
 - **Production refuses to start:** read the missing-variable error; production deliberately fails closed.
-- **API returns `MFA_REQUIRED`:** enroll TOTP in Clerk Security, sign out/in, and verify the Clerk session token exposes `aal`, `fva`, or `amr`.
-- **RLS returns no project:** confirm the active Clerk token `sub` matches `owner_id` and contains an accepted second-factor claim.
+- **API returns `MFA_REQUIRED`:** open Security, enroll or challenge a TOTP factor, and verify the refreshed Supabase token exposes `aal=aal2`.
+- **RLS returns no project:** confirm the verified Supabase token `sub` matches `owner_id` and contains `aal=aal2`.
 - **Answer shows failed:** the answer is already saved. Use Retry; do not submit a new client answer ID.
 - **Interview returns `MODEL_NOT_CONFIGURED`:** this is the intended disabled-production state before the paid live smoke test; no OpenAI request was sent.
 - **Notion shows 401:** reconnect only if automatic refresh reports `NOTION_RECONNECT_REQUIRED`.
@@ -225,8 +223,8 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 
 ## License
 
-Lumixia Brief is open-source software licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for project attribution. The `private` package flag only prevents accidental publication to the npm registry; it does not restrict the rights granted by the repository license. Connected services such as OpenAI, Clerk, Supabase, Notion, Sentry, and Vercel remain subject to their own terms.
+Lumixia Brief is open-source software licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for project attribution. The `private` package flag only prevents accidental publication to the npm registry; it does not restrict the rights granted by the repository license. Connected services such as OpenAI, Supabase, Notion, Sentry, and Vercel remain subject to their own terms.
 
 ## Submission handoff
 
-Production Google OAuth is configured through the owner-authenticated Google Cloud and Clerk consoles. Interactive Google/TOTP enrollment, real Notion consent, UptimeRobot setup, and YouTube publishing still require the owner at their respective authentication boundaries. These are tracked explicitly in [docs/submission-checklist.md](docs/submission-checklist.md). The public repository requires no private judge invitations.
+Production Google OAuth is configured through the owner-authenticated Google Cloud and Supabase consoles. Interactive Google/TOTP enrollment, real Notion consent, UptimeRobot setup, and YouTube publishing still require the owner at their respective authentication boundaries. These are tracked explicitly in [docs/submission-checklist.md](docs/submission-checklist.md). The public repository requires no private judge invitations.

@@ -29,6 +29,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run knip
       - run: npm run css:check
+      - run: npm run auth:check
       - run: npm run test:coverage
       - run: npm run test:ui
       - run: npm run build
@@ -64,14 +65,13 @@ jobs:
       - run: npx supabase db reset
       - name: Test empty-database migration and owner/MFA policies
         run: npm run test:integration
-      - name: Capture Supabase status
-        if: always()
-        run: npx supabase status --output json > supabase-status.json
+      - name: Capture sanitized integration evidence
+        run: npm run evidence:integration
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
         with:
           name: rls-evidence-${{ github.sha }}
-          path: supabase-status.json
+          path: artifacts/supabase-integration-summary.json
+          if-no-files-found: error
           retention-days: 30
 
   e2e:

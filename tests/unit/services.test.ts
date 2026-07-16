@@ -18,7 +18,6 @@ const identity = { ownerId: 'user-a' };
 const config = loadConfig({
   NODE_ENV: 'test',
   APP_URL: 'http://localhost:5173',
-  LOCAL_AUTH_BYPASS: 'true',
   MODEL_PROVIDER_MODE: 'mock',
   NOTION_PROVIDER_MODE: 'mock',
   DATA_MODE: 'memory',
@@ -152,9 +151,7 @@ describe('Notion service failure and lifecycle paths', () => {
       connected: false,
       workspaceName: null,
     });
-    await expect(service.completeOAuth(identity, 'code', 'state')).resolves.toContain(
-      'notion=connected',
-    );
+    await expect(service.completeOAuth(identity, 'code', 'state')).resolves.toBeUndefined();
     const stored = await store.getNotionConnection('user-a');
     expect(stored?.accessTokenEncrypted).not.toContain('mock-token');
     expect(stored?.refreshTokenEncrypted).not.toContain('mock-refresh');
@@ -353,13 +350,11 @@ describe('Notion service failure and lifecycle paths', () => {
     expect((await failedStore.getProject('user-a', failedProject.id))?.syncStatus).toBe('error');
   });
 
-  it('maps denied or invalid OAuth state to safe client errors', async () => {
+  it('accepts a validated denial and maps invalid OAuth state to a safe client error', async () => {
     const store = new MemoryProjectStore();
     const mock = new MockNotionProvider();
     const denied = new NotionService(store, mock, config);
-    expect(() => denied.rejectOAuth(identity, 'state')).toThrow(
-      'Notion authorization was cancelled',
-    );
+    expect(() => denied.rejectOAuth(identity, 'state')).not.toThrow();
     class InvalidStateNotionProvider extends MockNotionProvider {
       override verifyState(): void {
         throw new Error('secret detail');

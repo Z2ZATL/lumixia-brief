@@ -351,7 +351,7 @@ export class MockNotionProvider implements NotionProvider {
 
   authorizationUrl(ownerId: string): string {
     void ownerId;
-    return '/api/notion/callback?code=mock-code&state=mock-state';
+    return '/notion/callback?code=mock-code&state=mock-state';
   }
   verifyState(): void {}
   async exchangeCode(): Promise<NotionTokenResponse> {

@@ -3,7 +3,7 @@
 ## Protected assets
 
 - vague project ideas, interview answers, generated briefs, and approval history;
-- Google/Clerk session and second-factor state;
+- Google/Supabase session and second-factor state;
 - OpenAI and Notion credentials;
 - Notion parent/page identifiers; and
 - deployment/database secrets.
@@ -17,12 +17,13 @@
 5. Notion receives only an approved version after explicit sync.
 6. Monitoring receives operational metadata only.
 
-## Required Clerk configuration
+## Required Supabase Auth configuration
 
 - Enable Google as the only sign-in strategy.
-- Require TOTP enrollment and enable backup codes.
-- Activate Clerk's native Supabase integration and register its domain as a Supabase third-party auth provider.
-- Ensure the JWT includes `sub`, `role=authenticated`, and one of: `aal=aal2`, `fva` with a valid second-factor age, or `amr` containing `mfa`/`totp`/`otp`.
+- Require native TOTP enrollment and recommend a second verified TOTP factor on another device.
+- Use asymmetric ES256 signing keys and the publishable API-key system.
+- Express verifies the JWT signature, issuer, expiry, UUID `sub`, `role=authenticated`, and `aal=aal2` before business logic.
+- Forced RLS independently requires `sub = owner_id` and `aal=aal2`.
 - Set production redirect/origin allowlists exactly; do not use wildcards.
 
 ## Data and deletion

@@ -1,6 +1,6 @@
 # ADR-0003: MFA at both application and data boundaries
 
-- Status: accepted
+- Status: superseded by ADR-0006
 - Date: 2026-07-14
 
 ## Context

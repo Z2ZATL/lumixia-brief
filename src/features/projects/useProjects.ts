@@ -28,21 +28,19 @@ export function useProjectList(): ProjectListState {
   const [error, setError] = useState('');
   const submittingRef = useRef(false);
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
     projectApi
-      .list()
+      .list(controller.signal)
       .then(({ projects }) => {
-        if (active) setProjects(projects);
+        if (!controller.signal.aborted) setProjects(projects);
       })
       .catch((caught: Error) => {
-        if (active) setError(caught.message);
+        if (!controller.signal.aborted) setError(caught.message);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
-    return () => {
-      active = false;
-    };
+    return () => controller.abort();
   }, []);
   return {
     projects,

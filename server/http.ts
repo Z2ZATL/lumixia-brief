@@ -1,15 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { getAuth } from '@clerk/express';
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 import type { AppConfig } from './config.js';
+import type { IdentityVerifier } from './security/identity.js';
 
 declare global {
   namespace Express {
     interface Request {
       requestId: string;
       requestSignal?: AbortSignal;
-      authContext?: { userId: string; supabaseToken?: string; aal: 'aal2' };
+      authContext?: { userId: string; accessToken: string; aal: 'aal2' };
     }
   }
 }
@@ -31,6 +31,7 @@ export function requestContext(config: AppConfig) {
     req.requestId = req.header('x-request-id')?.slice(0, 100) || randomUUID();
     res.setHeader('x-request-id', req.requestId);
     res.on('finish', () => {
+      if (config.NODE_ENV === 'test' || process.env['NODE_ENV'] === 'test') return;
       const userId = req.authContext?.userId;
       const event = {
         level: 'info',
@@ -61,7 +62,6 @@ export function exactOrigin(config: AppConfig) {
     const origin = req.header('origin');
     if (origin === config.allowedOrigin) {
       res.setHeader('access-control-allow-origin', config.allowedOrigin);
-      res.setHeader('access-control-allow-credentials', 'true');
       res.setHeader('vary', 'Origin');
     }
     if (req.method === 'OPTIONS') {
@@ -78,32 +78,17 @@ export function exactOrigin(config: AppConfig) {
   };
 }
 
-export function requireMfa(config: AppConfig) {
+export function requireIdentity(config: AppConfig, verifier: IdentityVerifier) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
-      if (config.authBypass || config.NODE_ENV === 'test') {
-        const userId = req.header('x-test-user') ?? 'local-demo-user';
-        const aal = req.header('x-test-aal') ?? 'aal2';
-        if (aal !== 'aal2')
-          throw new HttpError(403, 'MFA_REQUIRED', 'A second factor is required.');
-        const authorization = req.header('authorization');
-        req.authContext = {
-          userId,
-          ...(authorization ? { supabaseToken: authorization.replace(/^Bearer /, '') } : {}),
-          aal: 'aal2',
-        };
-        return next();
-      }
-
-      const auth = getAuth(req);
-      if (!auth.userId) throw new HttpError(401, 'AUTH_REQUIRED', 'Authentication required.');
-      const claims = (auth.sessionClaims ?? {}) as Record<string, unknown>;
-      if (!hasMfaClaim(claims)) {
-        throw new HttpError(403, 'MFA_REQUIRED', 'Complete TOTP verification before continuing.');
-      }
-      const token = await auth.getToken();
-      if (!token) throw new HttpError(401, 'SUPABASE_TOKEN_REQUIRED', 'Session token unavailable.');
-      req.authContext = { userId: auth.userId, supabaseToken: token, aal: 'aal2' };
+      const token =
+        config.AUTH_MODE === 'local-demo' ? 'local-demo' : bearerToken(req.header('authorization'));
+      const identity = await verifier.verify(token, req.requestSignal ?? neverAbortedSignal());
+      req.authContext = {
+        userId: identity.userId,
+        accessToken: identity.accessToken,
+        aal: identity.aal,
+      };
       return next();
     } catch (error) {
       return next(error);
@@ -111,13 +96,14 @@ export function requireMfa(config: AppConfig) {
   };
 }
 
-export function hasMfaClaim(claims: Record<string, unknown>): boolean {
-  if (claims['aal'] === 'aal2') return true;
-  if (Array.isArray(claims['fva']) && claims['fva'].length > 1) {
-    const secondFactorAge = Number(claims['fva'][1]);
-    if (Number.isFinite(secondFactorAge) && secondFactorAge >= 0) return true;
-  }
-  return false;
+function bearerToken(authorization: string | undefined): string {
+  const match = /^Bearer ([^\s]+)$/.exec(authorization ?? '');
+  if (!match?.[1]) throw new HttpError(401, 'AUTH_REQUIRED', 'Authentication required.');
+  return match[1];
+}
+
+function neverAbortedSignal(): AbortSignal {
+  return new AbortController().signal;
 }
 
 export function perUserRateLimit(config: AppConfig, points = 90, duration = 60) {
@@ -155,16 +141,16 @@ async function consumeDistributedLimit(
   points: number,
   duration: number,
 ): Promise<boolean> {
-  const token = req.authContext?.supabaseToken;
-  if (!config.SUPABASE_URL || !config.SUPABASE_PUBLISHABLE_KEY || !token) {
+  const token = req.authContext?.accessToken;
+  if (!config.VITE_SUPABASE_URL || !config.VITE_SUPABASE_PUBLISHABLE_KEY || !token) {
     throw new Error('RATE_LIMIT_CONFIGURATION_UNAVAILABLE');
   }
   const bucket = `${req.method}:${sanitizedRoute(req)}:${points}:${duration}`;
-  const response = await fetch(`${config.SUPABASE_URL}/rest/v1/rpc/consume_rate_limit`, {
+  const response = await fetch(`${config.VITE_SUPABASE_URL}/rest/v1/rpc/consume_rate_limit`, {
     method: 'POST',
     signal: combineSignals(req.requestSignal, AbortSignal.timeout(2500)),
     headers: {
-      apikey: config.SUPABASE_PUBLISHABLE_KEY,
+      apikey: config.VITE_SUPABASE_PUBLISHABLE_KEY,
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
     },
@@ -218,7 +204,7 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
   const status = known ? error.status : 500;
   const code = known ? error.code : 'INTERNAL_ERROR';
   const message = known ? error.message : 'The request could not be completed.';
-  if (!known) {
+  if (!known && process.env['NODE_ENV'] !== 'test') {
     process.stderr.write(
       `${JSON.stringify({ level: 'error', requestId: req.requestId, code, errorType: error instanceof Error ? error.name : 'unknown' })}\n`,
     );

@@ -1,13 +1,22 @@
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Project } from '../../shared/contracts.js';
-import { createApp } from '../../server/app.js';
+import { createApp as createRuntimeApp, type AppDependencies } from '../../server/app.js';
 import { loadConfig } from '../../server/config.js';
 import { MockModelProvider } from '../../server/providers/model.js';
 import { MockNotionProvider } from '../../server/providers/notion.js';
 import { MemoryProjectStore } from '../../server/store/memory.js';
+import { TestIdentityVerifier, userAHeaders, userBHeaders } from '../helpers/identity.js';
 
-const headers = { 'x-test-user': 'user-a', 'x-test-aal': 'aal2', origin: 'http://localhost:5173' };
+const headers = userAHeaders;
+
+function createApp(dependencies: Omit<AppDependencies, 'identity'>) {
+  return createRuntimeApp({
+    ...dependencies,
+    config: { ...dependencies.config, AUTH_MODE: 'supabase', VITE_AUTH_MODE: 'supabase' },
+    identity: new TestIdentityVerifier(),
+  });
+}
 
 describe('Lumixia API', () => {
   let app: ReturnType<typeof createApp>;
@@ -18,7 +27,6 @@ describe('Lumixia API', () => {
       NODE_ENV: 'test',
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
-      LOCAL_AUTH_BYPASS: 'true',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
@@ -34,13 +42,10 @@ describe('Lumixia API', () => {
   it('denies AAL1 and cross-owner reads', async () => {
     await request(app)
       .get('/api/projects')
-      .set({ ...headers, 'x-test-aal': 'aal1' })
+      .set({ ...headers, authorization: 'Bearer test-aal1' })
       .expect(403);
     const created = await createProject(app);
-    await request(app)
-      .get(`/api/projects/${created.id}`)
-      .set({ ...headers, 'x-test-user': 'user-b' })
-      .expect(404);
+    await request(app).get(`/api/projects/${created.id}`).set(userBHeaders).expect(404);
   });
 
   it('sets an allowlisted CSP on public responses', async () => {
@@ -49,14 +54,12 @@ describe('Lumixia API', () => {
     expect(response.headers['content-security-policy']).toContain('frame-ancestors');
   });
 
-  it('keeps public health routes independent from Clerk authentication', async () => {
+  it('keeps public health routes independent from authentication', async () => {
     const config = loadConfig({
       NODE_ENV: 'development',
       APP_ENV: 'local',
       APP_URL: 'https://brief.example.com',
       ALLOWED_ORIGIN: 'https://brief.example.com',
-      CLERK_SECRET_KEY: 'invalid-clerk-secret',
-      LOCAL_AUTH_BYPASS: 'false',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
@@ -72,15 +75,16 @@ describe('Lumixia API', () => {
     await request(publicApp).get('/api/ready').expect(200);
   });
 
-  it('passes the configured publishable key to Clerk for signed-out requests', async () => {
+  it('rejects signed-out requests before protected handlers run', async () => {
     const config = loadConfig({
       NODE_ENV: 'development',
       APP_ENV: 'local',
       APP_URL: 'https://brief.example.com',
       ALLOWED_ORIGIN: 'https://brief.example.com',
-      VITE_CLERK_PUBLISHABLE_KEY: ['pk', 'test', 'Y2xlcmsuZXhhbXBsZS50ZXN0JA=='].join('_'),
-      CLERK_SECRET_KEY: ['sk', 'test', 'a'.repeat(32)].join('_'),
-      LOCAL_AUTH_BYPASS: 'false',
+      AUTH_MODE: 'supabase',
+      VITE_AUTH_MODE: 'supabase',
+      VITE_SUPABASE_URL: 'https://example.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'test-key',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
@@ -105,12 +109,11 @@ describe('Lumixia API', () => {
       APP_ENV: 'local',
       APP_URL: 'https://brief.example.com',
       ALLOWED_ORIGIN: 'https://brief.example.com',
-      LOCAL_AUTH_BYPASS: 'true',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'supabase',
-      SUPABASE_URL: 'https://example.supabase.co',
-      SUPABASE_PUBLISHABLE_KEY: 'test-key',
+      VITE_SUPABASE_URL: 'https://example.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'test-key',
     });
     const readinessApp = createApp({
       config,
@@ -136,12 +139,11 @@ describe('Lumixia API', () => {
       APP_ENV: 'local',
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
-      LOCAL_AUTH_BYPASS: 'true',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'supabase',
-      SUPABASE_URL: 'https://example.supabase.co',
-      SUPABASE_PUBLISHABLE_KEY: 'test-key',
+      VITE_SUPABASE_URL: 'https://example.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'test-key',
     });
     const distributedApp = createApp({
       config,
@@ -158,7 +160,6 @@ describe('Lumixia API', () => {
       NODE_ENV: 'test',
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
-      LOCAL_AUTH_BYPASS: 'true',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
@@ -228,7 +229,6 @@ describe('Lumixia API', () => {
       NODE_ENV: 'test',
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
-      LOCAL_AUTH_BYPASS: 'true',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
@@ -293,10 +293,11 @@ describe('Lumixia API', () => {
       .expect(200);
 
     const callback = await request(app)
-      .get('/api/notion/callback?code=mock&state=mock')
+      .post('/api/notion/callback')
       .set(headers)
-      .expect(302);
-    expect(callback.headers['location']).toContain('/settings');
+      .send({ result: 'success', code: 'mock', state: 'mock' })
+      .expect(200);
+    expect(callback.body).toEqual({ connected: true, cancelled: false });
     await request(app)
       .post(`/api/projects/${project.id}/notion/parent`)
       .set(headers)
@@ -333,7 +334,6 @@ describe('Lumixia API', () => {
       NODE_ENV: 'test',
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
-      LOCAL_AUTH_BYPASS: 'true',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
@@ -385,7 +385,6 @@ describe('Lumixia API', () => {
       NODE_ENV: 'test',
       APP_URL: 'http://localhost:5173',
       ALLOWED_ORIGIN: 'http://localhost:5173',
-      LOCAL_AUTH_BYPASS: 'true',
       MODEL_PROVIDER_MODE: 'mock',
       NOTION_PROVIDER_MODE: 'mock',
       DATA_MODE: 'memory',
@@ -417,7 +416,11 @@ describe('Lumixia API', () => {
       model: new MockModelProvider(),
       notion,
     });
-    await request(app).get('/api/notion/callback?code=mock&state=mock').set(headers).expect(302);
+    await request(app)
+      .post('/api/notion/callback')
+      .set(headers)
+      .send({ result: 'success', code: 'mock', state: 'mock' })
+      .expect(200);
     const pages = await request(app).get('/api/notion/pages').set(headers).expect(200);
     expect(pages.body.pages).toHaveLength(2);
     expect(notion.refreshes).toBe(1);

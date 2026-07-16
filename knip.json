@@ -1,5 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["api/index.ts", "scripts/*.ts"],
+  "entry": [
+    "api/index.ts",
+    "scripts/*.ts",
+    "vitest.integration.config.ts",
+    "tests/integration/*.test.ts"
+  ],
   "project": ["**/*.{ts,tsx,js,mjs}", "!dist/**", "!coverage/**"]
 }

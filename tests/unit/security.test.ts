@@ -1,17 +1,39 @@
 import { randomBytes } from 'node:crypto';
-import type { Request, Response } from 'express';
-import { getAuth } from '@clerk/express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../../server/config.js';
-import { hasMfaClaim, requireMfa } from '../../server/http.js';
+import { HttpError } from '../../server/http.js';
 import { decryptSecret, encryptSecret } from '../../server/security/encryption.js';
 import { securityHeaders } from '../../server/security/headers.js';
+import {
+  LocalDemoIdentityVerifier,
+  SupabaseIdentityVerifier,
+} from '../../server/security/identity.js';
 import { sanitizeTelemetryText } from '../../shared/telemetry.js';
 
-vi.mock('@clerk/express', () => ({ getAuth: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getClaims: vi.fn() }));
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => ({ auth: { getClaims: mocks.getClaims } })),
+}));
+
+const claims = {
+  iss: 'https://example.supabase.co/auth/v1',
+  sub: '11111111-1111-4111-8111-111111111111',
+  aud: 'authenticated',
+  exp: Math.floor(Date.now() / 1000) + 3600,
+  iat: Math.floor(Date.now() / 1000),
+  role: 'authenticated',
+  aal: 'aal2',
+  session_id: 'session-id',
+};
 
 describe('security primitives', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getClaims.mockResolvedValue({
+      data: { claims, header: { alg: 'ES256' }, signature: new Uint8Array() },
+      error: null,
+    });
+  });
 
   it('encrypts Notion tokens with authenticated AES-256-GCM', () => {
     const key = randomBytes(32).toString('base64');
@@ -33,63 +55,114 @@ describe('security primitives', () => {
     expect(() => decryptSecret('v1.iv..data', key)).toThrow('Invalid encrypted envelope');
   });
 
-  it('accepts AAL2/fva MFA and rejects AAL1', () => {
-    expect(hasMfaClaim({ aal: 'aal2' })).toBe(true);
-    expect(hasMfaClaim({ fva: [4, 0] })).toBe(true);
-    expect(hasMfaClaim({ fva: [4, -1], aal: 'aal1' })).toBe(false);
-    expect(hasMfaClaim({ fva: [4] })).toBe(false);
-    expect(hasMfaClaim({ fva: [4, 'not-a-number'] })).toBe(false);
-    expect(hasMfaClaim({})).toBe(false);
-  });
-
-  it('constructs development and production CSP policies', () => {
-    expect(
-      securityHeaders(loadConfig({ NODE_ENV: 'test', MODEL_PROVIDER_MODE: 'mock' })),
-    ).toBeTypeOf('function');
-    expect(
-      securityHeaders(
-        loadConfig({
-          NODE_ENV: 'test',
-          APP_ENV: 'production',
-          APP_URL: 'https://brief.example.com',
-          VITE_CLERK_PUBLISHABLE_KEY: 'pk_live_example',
-          CLERK_SECRET_KEY: 'sk_live_example',
-          SUPABASE_URL: 'https://example.supabase.co',
-          SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example',
-          DATA_MODE: 'supabase',
-          MODEL_PROVIDER_MODE: 'disabled',
-          NOTION_PROVIDER_MODE: 'live',
-          NOTION_CLIENT_ID: 'notion-client',
-          NOTION_CLIENT_SECRET: 'notion-secret',
-          NOTION_REDIRECT_URI: 'https://brief.example.com/api/notion/callback',
-          OAUTH_STATE_SECRET: 's'.repeat(32),
-          TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
-        }),
-      ),
-    ).toBeTypeOf('function');
-  });
-
-  it('passes the native Clerk session token to Supabase without a deprecated JWT template', async () => {
-    const getToken = vi.fn().mockResolvedValue('native-session-token');
-    vi.mocked(getAuth).mockReturnValue({
-      userId: 'user_test',
-      sessionClaims: { fva: [4, 0] },
-      getToken,
-    } as unknown as ReturnType<typeof getAuth>);
-    const request = {} as Request;
-    const next = vi.fn();
-    const middleware = requireMfa(loadConfig({ NODE_ENV: 'development', APP_ENV: 'local' }));
-
-    await middleware(request, {} as Response, next);
-
-    expect(getToken).toHaveBeenCalledOnce();
-    expect(getToken).toHaveBeenCalledWith();
-    expect(request.authContext).toEqual({
-      userId: 'user_test',
-      supabaseToken: 'native-session-token',
+  it('accepts only a verified Supabase AAL2 access token', async () => {
+    const verifier = new SupabaseIdentityVerifier('https://example.supabase.co', 'publishable-key');
+    await expect(verifier.verify('valid-token', new AbortController().signal)).resolves.toEqual({
+      userId: claims.sub,
+      accessToken: 'valid-token',
       aal: 'aal2',
     });
-    expect(next).toHaveBeenCalledWith();
+    mocks.getClaims.mockResolvedValueOnce({
+      data: { claims: { ...claims, aal: 'aal1' } },
+      error: null,
+    });
+    await expectHttpError(
+      verifier.verify('aal1-token', new AbortController().signal),
+      403,
+      'MFA_REQUIRED',
+    );
+  });
+
+  it('rejects wrong issuer, role, subject, and expired sessions', async () => {
+    const verifier = new SupabaseIdentityVerifier('https://example.supabase.co', 'publishable-key');
+    for (const invalid of [
+      { ...claims, iss: 'https://evil.example/auth/v1' },
+      { ...claims, role: 'anon' },
+      { ...claims, sub: 'not-a-uuid' },
+    ]) {
+      mocks.getClaims.mockResolvedValueOnce({ data: { claims: invalid }, error: null });
+      await expectHttpError(
+        verifier.verify('invalid-token', new AbortController().signal),
+        401,
+        'AUTH_TOKEN_INVALID',
+      );
+    }
+    await expectHttpError(
+      verifier.verify(expiredToken(), new AbortController().signal),
+      401,
+      'AUTH_SESSION_EXPIRED',
+    );
+  });
+
+  it('fails closed when identity verification is unavailable', async () => {
+    const verifier = new SupabaseIdentityVerifier('https://example.supabase.co', 'publishable-key');
+    mocks.getClaims.mockRejectedValueOnce(new TypeError('network unavailable'));
+    await expectHttpError(
+      verifier.verify('valid-token', new AbortController().signal),
+      503,
+      'AUTH_PROVIDER_UNAVAILABLE',
+    );
+
+    const alreadyAborted = new AbortController();
+    alreadyAborted.abort();
+    await expectHttpError(
+      verifier.verify('valid-token', alreadyAborted.signal),
+      503,
+      'AUTH_PROVIDER_UNAVAILABLE',
+    );
+
+    const abortedDuringVerification = new AbortController();
+    mocks.getClaims.mockImplementationOnce(async () => {
+      abortedDuringVerification.abort();
+      return { data: { claims }, error: null };
+    });
+    await expectHttpError(
+      verifier.verify('valid-token', abortedDuringVerification.signal),
+      503,
+      'AUTH_PROVIDER_UNAVAILABLE',
+    );
+  });
+
+  it('uses a fixed local identity and rejects an aborted local request', async () => {
+    const verifier = new LocalDemoIdentityVerifier();
+    await expect(verifier.verify('', new AbortController().signal)).resolves.toEqual({
+      userId: '00000000-0000-4000-8000-000000000001',
+      accessToken: 'local-demo',
+      aal: 'aal2',
+    });
+    const controller = new AbortController();
+    controller.abort();
+    await expectHttpError(verifier.verify('', controller.signal), 503, 'AUTH_PROVIDER_UNAVAILABLE');
+  });
+
+  it('maps malformed tokens and unexpected claim failures to invalid-token responses', async () => {
+    const verifier = new SupabaseIdentityVerifier('https://example.supabase.co', 'publishable-key');
+    mocks.getClaims.mockRejectedValueOnce(new Error('verification rejected'));
+    await expectHttpError(
+      verifier.verify('invalid-token', new AbortController().signal),
+      401,
+      'AUTH_TOKEN_INVALID',
+    );
+
+    mocks.getClaims.mockResolvedValueOnce({ data: null, error: new Error('invalid') });
+    await expectHttpError(
+      verifier.verify('header.%%%not-base64%%%.signature', new AbortController().signal),
+      401,
+      'AUTH_TOKEN_INVALID',
+    );
+  });
+
+  it('constructs a legacy-provider-free Supabase CSP policy', () => {
+    const middleware = securityHeaders(
+      loadConfig({
+        NODE_ENV: 'test',
+        AUTH_MODE: 'supabase',
+        VITE_AUTH_MODE: 'supabase',
+        VITE_SUPABASE_URL: 'https://example.supabase.co',
+        VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+      }),
+    );
+    expect(middleware).toBeTypeOf('function');
   });
 
   it('removes query secrets, OAuth values, and record identifiers from telemetry', () => {
@@ -103,3 +176,19 @@ describe('security primitives', () => {
     );
   });
 });
+
+async function expectHttpError(promise: Promise<unknown>, status: number, code: string) {
+  try {
+    await promise;
+    throw new Error('Expected an HttpError.');
+  } catch (error) {
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error).toMatchObject({ status, code });
+  }
+}
+
+function expiredToken(): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'ES256' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ exp: 1 })).toString('base64url');
+  return `${header}.${payload}.signature`;
+}

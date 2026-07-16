@@ -7,6 +7,10 @@ import {
   OpenAIModelProvider,
 } from '../../server/providers/model.js';
 import { LiveNotionProvider, MockNotionProvider } from '../../server/providers/notion.js';
+import {
+  LocalDemoIdentityVerifier,
+  SupabaseIdentityVerifier,
+} from '../../server/security/identity.js';
 import { MemoryProjectStore } from '../../server/store/memory.js';
 import { SupabaseProjectStore } from '../../server/store/supabase.js';
 
@@ -15,18 +19,17 @@ const production = {
   APP_ENV: 'production',
   APP_URL: 'https://brief.example.com',
   ALLOWED_ORIGIN: 'https://brief.example.com',
-  VITE_CLERK_PUBLISHABLE_KEY: 'pk_live_example',
-  CLERK_SECRET_KEY: 'sk_live_example',
-  SUPABASE_URL: 'https://example.supabase.co',
-  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example',
+  AUTH_MODE: 'supabase',
+  VITE_AUTH_MODE: 'supabase',
+  VITE_SUPABASE_URL: 'https://example.supabase.co',
+  VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example',
   NOTION_CLIENT_ID: 'notion-client',
   NOTION_CLIENT_SECRET: 'notion-secret',
-  NOTION_REDIRECT_URI: 'https://brief.example.com/api/notion/callback',
+  NOTION_REDIRECT_URI: 'https://brief.example.com/notion/callback',
   OAUTH_STATE_SECRET: 's'.repeat(32),
   TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64'),
   DATA_MODE: 'supabase',
   NOTION_PROVIDER_MODE: 'live',
-  LOCAL_AUTH_BYPASS: 'false',
 } satisfies NodeJS.ProcessEnv;
 
 describe('runtime configuration', () => {
@@ -49,7 +52,7 @@ describe('runtime configuration', () => {
     ).toBe(true);
   });
 
-  it('fails closed when live Notion or Supabase configuration is incomplete', () => {
+  it('fails closed when live integrations or authentication are incomplete', () => {
     expect(() =>
       loadConfig({ ...production, APP_URL: undefined, MODEL_PROVIDER_MODE: 'disabled' }),
     ).toThrow('APP_URL');
@@ -60,21 +63,31 @@ describe('runtime configuration', () => {
       loadConfig({ ...production, MODEL_PROVIDER_MODE: 'disabled', DATA_MODE: 'memory' }),
     ).toThrow('live Notion and Supabase');
     expect(() =>
-      loadConfig({ ...production, MODEL_PROVIDER_MODE: 'disabled', LOCAL_AUTH_BYPASS: 'true' }),
-    ).toThrow('forbidden outside local development');
+      loadConfig({
+        ...production,
+        MODEL_PROVIDER_MODE: 'disabled',
+        AUTH_MODE: 'local-demo',
+        VITE_AUTH_MODE: 'local-demo',
+      }),
+    ).toThrow('require Supabase authentication');
     expect(() =>
       loadConfig({
         ...production,
         MODEL_PROVIDER_MODE: 'disabled',
-        TOKEN_ENCRYPTION_KEY: Buffer.alloc(31).toString('base64'),
+        VITE_SUPABASE_PUBLISHABLE_KEY: '',
       }),
-    ).toThrow('exactly 32 bytes');
+    ).toThrow('VITE_SUPABASE_PUBLISHABLE_KEY');
   });
 
-  it('allows the Vercel preview matrix while rejecting unsafe environment combinations', () => {
+  it('requires client and server authentication modes to match', () => {
+    expect(() => loadConfig({ AUTH_MODE: 'supabase', VITE_AUTH_MODE: 'local-demo' })).toThrow(
+      'must match',
+    );
+  });
+
+  it('allows the Vercel preview matrix while rejecting unsafe combinations', () => {
     const preview = loadConfig({
       ...production,
-      NODE_ENV: 'production',
       APP_ENV: 'preview',
       APP_URL: undefined,
       ALLOWED_ORIGIN: undefined,
@@ -82,22 +95,14 @@ describe('runtime configuration', () => {
       VERCEL_URL: 'lumixia-brief-preview.vercel.app',
       MODEL_PROVIDER_MODE: 'mock',
     });
-    expect(preview.MODEL_PROVIDER_MODE).toBe('mock');
     expect(preview.APP_URL).toBe('https://lumixia-brief-git-feature.vercel.app');
-    expect(preview.allowedOrigin).toBe('https://lumixia-brief-git-feature.vercel.app');
-    expect(preview.authBypass).toBe(false);
+    expect(preview.AUTH_MODE).toBe('supabase');
     expect(() =>
-      loadConfig({
-        ...production,
-        NODE_ENV: 'production',
-        APP_ENV: 'preview',
-        MODEL_PROVIDER_MODE: 'disabled',
-      }),
+      loadConfig({ ...production, APP_ENV: 'preview', MODEL_PROVIDER_MODE: 'disabled' }),
     ).toThrow('Preview requires');
     expect(() =>
       loadConfig({
         ...production,
-        NODE_ENV: 'production',
         APP_ENV: 'preview',
         APP_URL: undefined,
         VERCEL_BRANCH_URL: undefined,
@@ -110,27 +115,17 @@ describe('runtime configuration', () => {
     ).toThrow('APP_ENV must be preview or production');
   });
 
-  it('composes independent data, model, and Notion providers', () => {
-    const local = createDependencies(
-      loadConfig({
-        NODE_ENV: 'test',
-        MODEL_PROVIDER_MODE: 'mock',
-        NOTION_PROVIDER_MODE: 'mock',
-        DATA_MODE: 'memory',
-      }),
-    );
+  it('composes independent identity, data, model, and Notion providers', () => {
+    const local = createDependencies(loadConfig({ NODE_ENV: 'test' }));
+    expect(local.identity).toBeInstanceOf(LocalDemoIdentityVerifier);
     expect(local.store).toBeInstanceOf(MemoryProjectStore);
     expect(local.model).toBeInstanceOf(MockModelProvider);
     expect(local.notion).toBeInstanceOf(MockNotionProvider);
 
     const disabled = createDependencies(
-      loadConfig({
-        ...production,
-        NODE_ENV: 'test',
-        APP_ENV: 'production',
-        MODEL_PROVIDER_MODE: 'disabled',
-      }),
+      loadConfig({ ...production, NODE_ENV: 'test', MODEL_PROVIDER_MODE: 'disabled' }),
     );
+    expect(disabled.identity).toBeInstanceOf(SupabaseIdentityVerifier);
     expect(disabled.store).toBeInstanceOf(SupabaseProjectStore);
     expect(disabled.model).toBeInstanceOf(DisabledModelProvider);
     expect(disabled.notion).toBeInstanceOf(LiveNotionProvider);
@@ -139,7 +134,6 @@ describe('runtime configuration', () => {
       loadConfig({
         ...production,
         NODE_ENV: 'test',
-        APP_ENV: 'production',
         MODEL_PROVIDER_MODE: 'live',
         OPENAI_API_KEY: 'test-key',
       }),

@@ -9,14 +9,14 @@
 - [x] Build Ledger and ADR structure
 - [ ] Live GPT-5.6 contract smoke test with synthetic data
 - [x] Disabled-model behavior, fake Responses-client contract, retry, refusal, schema, and no-network regression tests
-- [ ] Real Google/TOTP + backup-code smoke test
+- [ ] Real Google/TOTP + backup-factor smoke test
 - [ ] Real Notion OAuth/refresh/idempotent-sync smoke test
 - [ ] Seeded founder example in production
 - [ ] Demo path timed below 3:00
 
 ## Infrastructure
 
-- [ ] Clerk development and production instances configured Google-only + mandatory TOTP
+- [ ] Supabase staging and production Auth configured Google-only + mandatory native TOTP
 - [ ] Supabase staging and production projects migrated; RLS verified with two users
 - [ ] Notion public integration and redirect URIs configured
 - [ ] Vercel project linked; preview and production variables separated

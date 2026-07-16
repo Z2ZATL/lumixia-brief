@@ -39,8 +39,10 @@ export function validateBody(schema: ZodType) {
 
 export function requestIdentity(req: Request): RequestIdentity {
   if (!req.authContext) throw new HttpError(401, 'AUTH_REQUIRED', 'Authentication required.');
-  const identity: RequestIdentity = { ownerId: req.authContext.userId };
-  if (req.authContext.supabaseToken) identity.token = req.authContext.supabaseToken;
+  const identity: RequestIdentity = {
+    ownerId: req.authContext.userId,
+    token: req.authContext.accessToken,
+  };
   if (req.requestSignal) identity.signal = req.requestSignal;
   return identity;
 }

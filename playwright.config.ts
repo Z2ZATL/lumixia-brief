@@ -18,7 +18,6 @@ export default defineConfig({
       reuseExistingServer: !process.env['CI'],
       timeout: 120_000,
       env: {
-        LOCAL_AUTH_BYPASS: 'true',
         MODEL_PROVIDER_MODE: 'mock',
         NOTION_PROVIDER_MODE: 'mock',
         DATA_MODE: 'memory',

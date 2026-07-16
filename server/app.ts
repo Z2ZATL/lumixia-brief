@@ -1,4 +1,3 @@
-import { clerkMiddleware } from '@clerk/express';
 import express from 'express';
 import { type AppConfig, loadConfig } from './config.js';
 import { normalizeErrors } from './errors.js';
@@ -9,7 +8,7 @@ import {
   perUserRateLimit,
   requestContext,
   requestDeadline,
-  requireMfa,
+  requireIdentity,
 } from './http.js';
 import { initializeSentry, mountSentryErrors } from './observability/sentry.js';
 import {
@@ -26,6 +25,7 @@ import { createInterviewRouter } from './routes/interview.js';
 import { createNotionRouter } from './routes/notion.js';
 import { createProjectRouter } from './routes/projects.js';
 import { securityHeaders } from './security/headers.js';
+import { createIdentityVerifier, type IdentityVerifier } from './security/identity.js';
 import { BriefService } from './services/briefs.js';
 import { InterviewService } from './services/interview.js';
 import { NotionService } from './services/notion.js';
@@ -39,12 +39,13 @@ export interface AppDependencies {
   store: ProjectStore;
   model: ModelProvider;
   notion: NotionProvider;
+  identity: IdentityVerifier;
 }
 
 export function createDependencies(config = loadConfig()): AppDependencies {
   const store =
     config.DATA_MODE === 'supabase'
-      ? new SupabaseProjectStore(config.SUPABASE_URL!, config.SUPABASE_PUBLISHABLE_KEY!)
+      ? new SupabaseProjectStore(config.VITE_SUPABASE_URL!, config.VITE_SUPABASE_PUBLISHABLE_KEY!)
       : new MemoryProjectStore();
   const model =
     config.MODEL_PROVIDER_MODE === 'live'
@@ -61,11 +62,11 @@ export function createDependencies(config = loadConfig()): AppDependencies {
           config.OAUTH_STATE_SECRET!,
         )
       : new MockNotionProvider();
-  return { config, store, model, notion };
+  return { config, store, model, notion, identity: createIdentityVerifier(config) };
 }
 
 export function createApp(dependencies = createDependencies()) {
-  const { config, store, model, notion } = dependencies;
+  const { config, store, model, notion, identity } = dependencies;
   initializeSentry(config);
 
   const app = express();
@@ -80,19 +81,8 @@ export function createApp(dependencies = createDependencies()) {
   // Liveness and readiness must remain public and independent from identity providers.
   app.use('/api', createHealthRouter(config));
 
-  if (!config.authBypass && config.NODE_ENV !== 'test') {
-    app.use(
-      clerkMiddleware({
-        ...(config.CLERK_SECRET_KEY ? { secretKey: config.CLERK_SECRET_KEY } : {}),
-        ...(config.VITE_CLERK_PUBLISHABLE_KEY
-          ? { publishableKey: config.VITE_CLERK_PUBLISHABLE_KEY }
-          : {}),
-      }),
-    );
-  }
-
   const protectedApi = express.Router();
-  protectedApi.use(requireMfa(config), perUserRateLimit(config));
+  protectedApi.use(requireIdentity(config, identity), perUserRateLimit(config));
   protectedApi.use(createCapabilityRouter(config));
   protectedApi.use(createProjectRouter(new ProjectService(store)));
   protectedApi.use(createInterviewRouter(new InterviewService(store, model), config));

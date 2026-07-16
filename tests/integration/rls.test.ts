@@ -28,7 +28,7 @@ describe('Supabase owner + MFA RLS', () => {
     await expect(
       sql.begin(async (tx) => {
         await tx.unsafe('set local role authenticated');
-        await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal1', fva: [1, -1], role: 'authenticated' })}, true)`;
+        await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal1', role: 'authenticated' })}, true)`;
         await tx`insert into public.projects (id, owner_id, title, workflow_status, sync_status, document) values (${projectId}, 'user-a', 'Blocked', 'draft', 'not_synced', '{}'::jsonb)`;
       }),
     ).rejects.toThrow();
@@ -47,7 +47,7 @@ describe('Supabase owner + MFA RLS', () => {
   it('allows AAL2 owner access and hides the row from another user', async () => {
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
       await tx`insert into public.projects (id, owner_id, title, workflow_status, sync_status, document) values (${projectId}, 'user-a', 'Allowed', 'draft', 'not_synced', '{}'::jsonb)`;
       const own = await tx`select id from public.projects where id = ${projectId}`;
       expect(own).toHaveLength(1);
@@ -55,7 +55,7 @@ describe('Supabase owner + MFA RLS', () => {
 
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-b', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-b', aal: 'aal2', role: 'authenticated' })}, true)`;
       const other = await tx`select id from public.projects where id = ${projectId}`;
       expect(other).toHaveLength(0);
     });
@@ -64,7 +64,7 @@ describe('Supabase owner + MFA RLS', () => {
   it('atomically claims interview turns and rejects concurrent work', async () => {
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
       const firstId = crypto.randomUUID();
       const secondId = crypto.randomUUID();
       const payload = { clientAnswerId: firstId, answer: 'first' };
@@ -94,7 +94,7 @@ describe('Supabase owner + MFA RLS', () => {
     const failedPayload = { answer: 'retry this exact payload' };
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
       await tx`select * from public.claim_interview_turn(
         'user-a', ${operationProjectId}, ${failedId}, ${tx.json(failedPayload)}, false
       )`;
@@ -122,7 +122,7 @@ describe('Supabase owner + MFA RLS', () => {
     await sql`update public.answer_claims set lease_expires_at = now() - interval '1 second' where client_answer_id = ${staleId}`;
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
       const reclaimed = await tx`select * from public.claim_interview_turn(
         'user-a', ${operationProjectId}, ${staleId}, ${tx.json({ answer: 'stale' })}, false
       )`;
@@ -133,7 +133,7 @@ describe('Supabase owner + MFA RLS', () => {
   it('compares project revisions and leases a single Notion sync operation', async () => {
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
       const saved = await tx`select public.compare_and_save_project(
         'user-a', ${operationProjectId}, 1, ${tx.json({ id: operationProjectId, revision: 2 })},
         'Operations v2', 'interviewing', 'not_synced', now()
@@ -169,7 +169,7 @@ describe('Supabase owner + MFA RLS', () => {
     const nextOperation = crypto.randomUUID();
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
       await tx`select * from public.claim_notion_sync(
         'user-a', ${operationProjectId}, ${version}, ${firstOperation}, 'same-content', null,
         now() + interval '60 seconds'
@@ -178,7 +178,7 @@ describe('Supabase owner + MFA RLS', () => {
     await sql`update public.notion_syncs set lease_expires_at = now() - interval '1 second' where project_id = ${operationProjectId} and brief_version = ${version}`;
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
       const reclaimed = await tx`select * from public.claim_notion_sync(
         'user-a', ${operationProjectId}, ${version}, ${nextOperation}, 'same-content', null,
         now() + interval '60 seconds'
@@ -215,7 +215,7 @@ describe('Supabase owner + MFA RLS', () => {
   it('enforces the distributed rate limit inside Postgres', async () => {
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
-      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', fva: [1, 0], role: 'authenticated' })}, true)`;
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
       const first =
         await tx`select public.consume_rate_limit('user-a', 'test-bucket', 2, 60) as allowed`;
       const second =

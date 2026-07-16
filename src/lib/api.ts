@@ -1,4 +1,5 @@
 import type { CapabilityStatus, DimensionKey, Project } from '../../shared/contracts';
+import { expireBrowserSession, getAccessToken, refreshAccessToken } from '../auth/client';
 
 export class ApiError extends Error {
   constructor(
@@ -10,30 +11,55 @@ export class ApiError extends Error {
   }
 }
 
-const localAuth = !import.meta.env['VITE_CLERK_PUBLISHABLE_KEY'];
-
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return request<T>(path, init, await getAccessToken(), false);
+}
+
+async function request<T>(
+  path: string,
+  init: RequestInit,
+  accessToken: string | null,
+  refreshed: boolean,
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (init.body) headers.set('Content-Type', 'application/json');
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   const response = await fetch(`/api${path}`, {
     ...init,
-    credentials: 'include',
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(localAuth ? { 'x-test-user': 'local-demo-user', 'x-test-aal': 'aal2' } : {}),
-      ...init.headers,
-    },
+    credentials: 'omit',
+    headers,
   });
   if (response.status === 204) return undefined as T;
-  const body = (await response.json().catch(() => null)) as
-    { error?: { code: string; message: string } } | T | null;
-  if (!response.ok) {
-    const error = body && typeof body === 'object' && 'error' in body ? body.error : undefined;
-    throw new ApiError(
-      response.status,
-      error?.code ?? 'REQUEST_FAILED',
-      error?.message ?? 'Request failed.',
-    );
-  }
+  const body = (await response.json().catch(() => null)) as ApiResponseBody<T>;
+  if (!response.ok) return handleFailure<T>(path, init, response.status, body, refreshed);
   return body as T;
+}
+
+type ApiResponseBody<T> = { error?: { code: string; message: string } } | T | null;
+
+async function handleFailure<T>(
+  path: string,
+  init: RequestInit,
+  status: number,
+  body: ApiResponseBody<T>,
+  refreshed: boolean,
+): Promise<T> {
+  const error = body && typeof body === 'object' && 'error' in body ? body.error : undefined;
+  if (!refreshed && error?.code === 'AUTH_SESSION_EXPIRED') {
+    return refreshAndRetry<T>(path, init);
+  }
+  throw new ApiError(status, error?.code ?? 'REQUEST_FAILED', error?.message ?? 'Request failed.');
+}
+
+async function refreshAndRetry<T>(path: string, init: RequestInit): Promise<T> {
+  let token: string;
+  try {
+    token = await refreshAccessToken();
+  } catch {
+    await expireBrowserSession();
+    throw new ApiError(401, 'AUTH_REQUIRED', 'Your session expired. Sign in again.');
+  }
+  return request<T>(path, init, token, true);
 }
 
 export const projectApi = {
