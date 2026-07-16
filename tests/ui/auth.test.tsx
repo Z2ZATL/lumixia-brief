@@ -217,7 +217,19 @@ describe('Supabase authentication UI', () => {
     expect(completeOAuthCallback).toHaveBeenCalledOnce();
   });
 
-  it('posts the Notion callback once under Strict Mode and removes secrets from the URL', async () => {
+  it('posts the Notion callback once, scrubs the URL, and notifies the original tab', async () => {
+    const messages: unknown[] = [];
+    class TestBroadcastChannel {
+      constructor(readonly name: string) {}
+      postMessage(message: unknown) {
+        messages.push(message);
+      }
+      close() {}
+      addEventListener() {}
+      removeEventListener() {}
+    }
+    vi.stubGlobal('BroadcastChannel', TestBroadcastChannel);
+    const close = vi.spyOn(window, 'close').mockImplementation(() => undefined);
     window.history.replaceState(
       {},
       '',
@@ -234,16 +246,23 @@ describe('Supabase authentication UI', () => {
             <AuthContext.Provider value={oneFactorContext()}>
               <Routes>
                 <Route path="/notion/callback" element={<NotionCallback />} />
-                <Route path="/settings" element={<div>Settings destination</div>} />
               </Routes>
             </AuthContext.Provider>
           </I18nProvider>
         </MemoryRouter>
       </StrictMode>,
     );
-    expect(await screen.findByText('Settings destination')).toBeVisible();
+    expect(await screen.findByText(/this tab will close automatically/i)).toBeVisible();
     expect(fetch).toHaveBeenCalledOnce();
     expect(window.location.search).toBe('');
+    expect(messages).toContainEqual({
+      type: 'lumixia:notion-oauth-result',
+      result: 'connected',
+    });
+    await userEvent.click(screen.getByRole('button', { name: /close this tab/i }));
+    expect(close).toHaveBeenCalledOnce();
+    close.mockRestore();
+    vi.unstubAllGlobals();
   });
 });
 
