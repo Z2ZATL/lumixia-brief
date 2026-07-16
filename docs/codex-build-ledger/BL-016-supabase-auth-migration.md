@@ -4,9 +4,9 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled during this milestone)
-- Commit: `2440e15`
-- PR: pending
-- CI: pending
+- Commits: `2440e15`, `c725c20`
+- PR: [#24](https://github.com/Z2ZATL/lumixia-brief/pull/24) (draft, stacked on backend PR #23)
+- CI: [run 29497134950](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29497134950) — Required CI passed
 
 ## Sanitized owner instruction
 
@@ -45,9 +45,16 @@ Replace the legacy identity provider with native Supabase Google OAuth and manda
 - Linux/amd64 Docker image built successfully; Trivy reported zero critical vulnerabilities; Gitleaks scanned 52 commits and reported no leaks
 - OpenAI network requests: zero
 
+## Hosted preview evidence
+
+- Vercel Preview deployed commit `c725c20a96e076f699abc10b9172efaa9744483d` successfully.
+- `/api/health` returned `200` with the deployed SHA and `/api/ready` returned `200`.
+- A signed-out request to `/api/projects` returned the expected `401 AUTH_REQUIRED` response.
+- New native Supabase Auth public variables are configured for Preview and Production. Legacy encrypted variables remain temporarily available only for rollback during the 24-hour soak.
+
 ## Handoffs and remaining gates
 
 - Configure dedicated non-production and production Google OAuth clients in the hosted Supabase projects, exact site/redirect URLs, TOTP, and asymmetric signing keys.
-- Add the new Supabase/Auth variables to Vercel Preview and Production, apply the forward-only hosted migrations, deploy the PR, and complete live Google/TOTP/AAL2, owner CRUD, cross-user RLS, refresh, sign-out, and Notion smoke tests.
+- Complete hosted Google/TOTP/AAL2 configuration, apply the forward-only hosted migrations, and complete owner CRUD, cross-user RLS, refresh, sign-out, and Notion smoke tests.
 - Keep the previous provider's encrypted variables and trust configuration only as a rollback boundary during the 24-hour soak. Do not delete external applications, OAuth clients, or DNS records yet.
 - After a clean 24-hour soak, execute BL-017 to remove the previous provider's Vercel variables, Supabase trust, dedicated OAuth credentials, application, and only its Cloudflare verification/delegation records. Preserve all mail and application DNS records.
