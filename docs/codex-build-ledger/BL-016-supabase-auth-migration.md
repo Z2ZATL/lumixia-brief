@@ -4,7 +4,7 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled during this milestone)
-- Commits: `2440e15`, `c725c20`, `ac34101`, `7885587`
+- Commits: `2440e15`, `c725c20`, `ac34101`, `7885587`, `55854cf`, `8455510`
 - PR: [#24](https://github.com/Z2ZATL/lumixia-brief/pull/24) (draft, stacked on backend PR #23)
 - CI: [run 29500510524](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29500510524) — Required CI passed
 
@@ -66,3 +66,15 @@ Replace the legacy identity provider with native Supabase Google OAuth and manda
 - Complete owner TOTP verification, AAL2 project CRUD, cross-user RLS, refresh, sign-out, and Notion smoke tests.
 - Keep the previous provider's encrypted variables and trust configuration only as a rollback boundary during the 24-hour soak. Do not delete external applications, OAuth clients, or DNS records yet.
 - After a clean 24-hour soak, execute BL-017 to remove the previous provider's Vercel variables, Supabase trust, dedicated OAuth credentials, application, and only its Cloudflare verification/delegation records. Preserve all mail and application DNS records.
+
+## Notion OAuth and flow-audit follow-up
+
+Sanitized owner instruction: retain the working two-factor flow, determine whether the legacy identity application can be deleted, audit the product flow in detail, and repair the Notion connection so authorization opens in a separate browser tab and completes reliably.
+
+- Production was still serving the legacy-auth `main` SHA while the native Supabase Auth work remained in stacked draft PRs #23 and #24. Deleting the legacy application at this point would break production sign-in, so the authorized deletion was deliberately deferred until the native-auth deployment and its production AAL2 smoke test succeed.
+- The Notion connect action previously replaced the Lumixia tab after an asynchronous API request. The callback then navigated that same tab back to Settings and had no safe way to notify an original tab. The replacement opens a blank tab synchronously from the user gesture, severs its opener, navigates it to Notion, and exchanges only a static success/cancel/failure message through a same-origin `BroadcastChannel`.
+- The callback removes OAuth values from browser history before processing, posts through the AAL2 bearer-authenticated API once under React Strict Mode, notifies the original tab without identifiers or tokens, attempts to close itself, and retains an accessible manual close control.
+- The Settings tab refreshes connection status on a valid callback message and on focus as a fallback. All lifecycle requests are abortable and malformed cross-tab messages are ignored.
+- The first local browser run exposed an unrelated Lumixia Web V2 process already listening on port 8787. Playwright had reused the wrong process and received 404 health responses. E2E now uses dedicated overrideable ports, configures the Vite proxy explicitly, and refuses to reuse an unknown server.
+- Regression verification: 16 targeted UI/auth tests, 18 complete UI tests, 89 unit/API tests with 94.82% line and 84.31% branch coverage, 11 local Supabase Auth/RLS integration tests, 6 desktop/mobile E2E tests, static clean gate, production build and bundle gate, zero dependency vulnerabilities, and Linux/amd64 Docker build all passed.
+- Live Notion developer-console redirect verification and real connect/list/sync/duplicate/revision/disconnect smoke remain owner-authenticated handoffs. No Notion credential, OAuth value, TOTP, user identifier, or project payload was recorded.
