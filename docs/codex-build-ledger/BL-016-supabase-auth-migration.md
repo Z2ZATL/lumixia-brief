@@ -4,7 +4,7 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled during this milestone)
-- Commits: `2440e15`, `c725c20`, `ac34101`, `7885587`, `55854cf`, `8455510`
+- Commits: `2440e15`, `c725c20`, `ac34101`, `7885587`, `55854cf`, `8455510`, `936a6ad`
 - PR: [#24](https://github.com/Z2ZATL/lumixia-brief/pull/24) (draft, stacked on backend PR #23)
 - CI: [run 29500510524](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29500510524) — Required CI passed
 
@@ -76,5 +76,8 @@ Sanitized owner instruction: retain the working two-factor flow, determine wheth
 - The callback removes OAuth values from browser history before processing, posts through the AAL2 bearer-authenticated API once under React Strict Mode, notifies the original tab without identifiers or tokens, attempts to close itself, and retains an accessible manual close control.
 - The Settings tab refreshes connection status on a valid callback message and on focus as a fallback. All lifecycle requests are abortable and malformed cross-tab messages are ignored.
 - The first local browser run exposed an unrelated Lumixia Web V2 process already listening on port 8787. Playwright had reused the wrong process and received 404 health responses. E2E now uses dedicated overrideable ports, configures the Vite proxy explicitly, and refuses to reuse an unknown server.
-- Regression verification: 16 targeted UI/auth tests, 18 complete UI tests, 89 unit/API tests with 94.82% line and 84.31% branch coverage, 11 local Supabase Auth/RLS integration tests, 6 desktop/mobile E2E tests, static clean gate, production build and bundle gate, zero dependency vulnerabilities, and Linux/amd64 Docker build all passed.
-- Live Notion developer-console redirect verification and real connect/list/sync/duplicate/revision/disconnect smoke remain owner-authenticated handoffs. No Notion credential, OAuth value, TOTP, user identifier, or project payload was recorded.
+- Regression verification: 16 targeted UI/auth tests, 18 complete UI tests, 89 unit/API tests with 95.13% line and 84.31% branch coverage, 11 local Supabase Auth/RLS integration tests, 8 serialized desktop/mobile E2E tests, static clean gate, production build and bundle gate, zero dependency vulnerabilities, and Linux/amd64 Docker build all passed.
+- The live Notion developer console still contained three obsolete `/api/notion/callback` values. They were replaced with exact local, stable Preview, and Production `/notion/callback` URLs; the console confirmed `Connection updated`. Client credentials and workspace permissions were not changed.
+- The first live callback then returned `403 ORIGIN_DENIED` before provider exchange. A signed-out synthetic request reproduced the same result and proved that Preview still allowlisted a temporary Vercel origin. Preview `APP_URL`, `ALLOWED_ORIGIN`, and `NOTION_REDIRECT_URI` were corrected to the stable Preview domain and queued for redeployment with the next commit.
+- A real-browser regression now proves that Settings remains open, Notion callback runs in a separate tab, the callback tab closes, the original tab becomes Connected, and disconnect/reconnect remains clean on desktop and mobile. Disconnect returns an explicit JSON `200` instead of a proxy-noisy empty `204` that Chromium reported as `net::ERR_ABORTED` despite completing successfully.
+- Live connect/list/sync/duplicate/revision/disconnect smoke remains an owner-authenticated gate after the corrected Preview environment is deployed. No Notion credential, OAuth value, TOTP, user identifier, or project payload was recorded.
