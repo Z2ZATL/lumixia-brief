@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { AuthBoundary } from '../auth';
+import { publishNotionOAuthResult } from '../features/settings/notionOAuth';
 import { api } from '../lib/api';
 import { useI18n } from '../i18n';
 
@@ -27,13 +27,13 @@ export function NotionCallback() {
 
 function NotionCompletion({ payload }: { payload: NotionPayload }) {
   const { t } = useI18n();
-  const navigate = useNavigate();
   const operation = useRef<NotionOperation | null>(null);
   const [message, setMessage] = useState(t('notionCallbackWorking'));
   const [error, setError] = useState('');
+  const [complete, setComplete] = useState(false);
   useEffect(() => {
     if (!payload) {
-      void navigate('/settings?notion=cancelled', { replace: true });
+      finishNotionCallback('cancelled', t('notionCancelledReturn'), setMessage, setComplete);
       return;
     }
     operation.current ??= createNotionOperation(payload);
@@ -43,13 +43,18 @@ function NotionCompletion({ payload }: { payload: NotionPayload }) {
     void activeOperation.promise
       .then((result) => {
         if (!active) return;
-        setMessage(result.cancelled ? t('notionCancelledReturn') : t('notionConnectedReturn'));
-        void navigate(`/settings?notion=${result.cancelled ? 'cancelled' : 'connected'}`, {
-          replace: true,
-        });
+        const outcome = result.cancelled ? 'cancelled' : 'connected';
+        const nextMessage = result.cancelled
+          ? t('notionCancelledReturn')
+          : t('notionConnectedReturn');
+        finishNotionCallback(outcome, nextMessage, setMessage, setComplete);
       })
       .catch(() => {
-        if (active && !activeOperation.controller.signal.aborted) setError(t('connectFailed'));
+        if (active && !activeOperation.controller.signal.aborted) {
+          publishNotionOAuthResult('failed');
+          setError(t('connectFailed'));
+          setComplete(true);
+        }
       });
     return () => {
       active = false;
@@ -58,7 +63,7 @@ function NotionCompletion({ payload }: { payload: NotionPayload }) {
         if (activeOperation.subscribers === 0) activeOperation.controller.abort();
       });
     };
-  }, [navigate, payload, t]);
+  }, [payload, t]);
   return (
     <main className="callback-stage">
       {error ? (
@@ -71,8 +76,25 @@ function NotionCompletion({ payload }: { payload: NotionPayload }) {
           <p>{message}</p>
         </>
       )}
+      {complete && (
+        <button className="button ghost" onClick={() => window.close()}>
+          {t('closeThisTab')}
+        </button>
+      )}
     </main>
   );
+}
+
+function finishNotionCallback(
+  result: 'connected' | 'cancelled',
+  message: string,
+  setMessage: (message: string) => void,
+  setComplete: (complete: boolean) => void,
+) {
+  publishNotionOAuthResult(result);
+  setMessage(message);
+  setComplete(true);
+  window.setTimeout(() => window.close(), 400);
 }
 
 function createNotionOperation(payload: Exclude<NotionPayload, null>): NotionOperation {

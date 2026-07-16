@@ -8,6 +8,7 @@ import { I18nProvider } from '../../src/i18n';
 import { Brief } from '../../src/pages/Brief';
 import { Interview } from '../../src/pages/Interview';
 import { Projects } from '../../src/pages/Projects';
+import { Settings } from '../../src/pages/Settings';
 import { makeProject } from './fixtures';
 
 interface AnswerSubmission {
@@ -181,6 +182,90 @@ describe('quality regressions', () => {
       </I18nProvider>,
     );
     await waitFor(() => expect(document.documentElement).toHaveAttribute('lang', 'th'));
+  });
+
+  it('opens Notion authorization in a new tab without replacing Lumixia', async () => {
+    const replace = vi.fn();
+    const close = vi.fn();
+    const popup = {
+      opener: window,
+      location: { replace },
+      close,
+    } as unknown as Window;
+    const open = vi.spyOn(window, 'open').mockReturnValue(popup);
+    mocks.api.mockImplementation(async (path: string) => {
+      if (path === '/notion/connect') return { authorizationUrl: 'https://api.notion.test/oauth' };
+      return { connected: false, workspaceName: null };
+    });
+    window.history.replaceState({}, '', '/settings');
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <Settings />
+        </I18nProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /connect notion/i }));
+    expect(open).toHaveBeenCalledWith('about:blank', '_blank');
+    expect(popup.opener).toBeNull();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('https://api.notion.test/oauth'));
+    expect(window.location.pathname).toBe('/settings');
+    open.mockRestore();
+  });
+
+  it('handles a blocked Notion authorization tab without starting OAuth', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    mocks.api.mockResolvedValue({ connected: false, workspaceName: null });
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <Settings />
+        </I18nProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /connect notion/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/open a new tab/i);
+    expect(mocks.api).not.toHaveBeenCalledWith('/notion/connect');
+    open.mockRestore();
+  });
+
+  it('refreshes the original tab when the Notion callback reports success', async () => {
+    let listener: EventListener = () => undefined;
+    class TestBroadcastChannel {
+      constructor(readonly name: string) {}
+      addEventListener(_type: string, nextListener: EventListener) {
+        listener = nextListener;
+      }
+      removeEventListener() {}
+      postMessage() {}
+      close() {}
+    }
+    vi.stubGlobal('BroadcastChannel', TestBroadcastChannel);
+    let statusRequests = 0;
+    mocks.api.mockImplementation(async (path: string) => {
+      if (path !== '/notion/status') throw new Error(`Unexpected request: ${path}`);
+      statusRequests += 1;
+      return {
+        connected: statusRequests > 1,
+        workspaceName: statusRequests > 1 ? 'Synthetic workspace' : null,
+      };
+    });
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <Settings />
+        </I18nProvider>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Not connected')).toBeVisible();
+    listener(
+      new MessageEvent('message', {
+        data: { type: 'lumixia:notion-oauth-result', result: 'connected' },
+      }),
+    );
+    expect(await screen.findByText(/Connected · Synthetic workspace/)).toBeVisible();
+    expect(statusRequests).toBe(2);
+    vi.unstubAllGlobals();
   });
 
   it('closes the revision dialog with Escape', async () => {
