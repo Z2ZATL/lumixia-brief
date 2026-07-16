@@ -4,7 +4,7 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled during this milestone)
-- Commit: pending
+- Commit: `2440e15`
 - PR: pending
 - CI: pending
 
