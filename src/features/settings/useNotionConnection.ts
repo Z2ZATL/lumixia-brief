@@ -69,7 +69,7 @@ export function useNotionConnection(t: Translator) {
     if (busy) return;
     setBusy(true);
     try {
-      await api('/notion/disconnect', { method: 'DELETE' });
+      await api<{ disconnected: true }>('/notion/disconnect', { method: 'DELETE' });
       setStatus({ connected: false, workspaceName: null });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('disconnectFailed'));

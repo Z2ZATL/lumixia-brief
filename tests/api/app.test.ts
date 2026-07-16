@@ -327,6 +327,13 @@ describe('Lumixia API', () => {
     expect(revision.body.project.briefVersions).toHaveLength(2);
     expect(revision.body.project.briefVersions[0].status).toBe('approved');
     expect(revision.body.project.briefVersions[1].status).toBe('draft');
+    const disconnected = await request(app)
+      .delete('/api/notion/disconnect')
+      .set(headers)
+      .expect(200);
+    expect(disconnected.body).toEqual({ disconnected: true });
+    const status = await request(app).get('/api/notion/status').set(headers).expect(200);
+    expect(status.body.connected).toBe(false);
   });
 
   it('saves failed answers for safe retry', async () => {
