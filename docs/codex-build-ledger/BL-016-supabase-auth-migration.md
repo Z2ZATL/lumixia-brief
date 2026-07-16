@@ -4,9 +4,9 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled during this milestone)
-- Commits: `2440e15`, `c725c20`, `ac34101`
+- Commits: `2440e15`, `c725c20`, `ac34101`, `7885587`
 - PR: [#24](https://github.com/Z2ZATL/lumixia-brief/pull/24) (draft, stacked on backend PR #23)
-- CI: [run 29497134950](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29497134950) — Required CI passed
+- CI: [run 29500510524](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29500510524) — Required CI passed
 
 ## Sanitized owner instruction
 
@@ -48,7 +48,7 @@ Replace the legacy identity provider with native Supabase Google OAuth and manda
 
 ## Hosted preview evidence
 
-- Vercel Preview deployed commit `ac341011355c1415e3e179a9c2d10ff33ab7521c` successfully.
+- Vercel Preview deployed commit `7885587b0702b3250dd3761f55907cd968b9f62c` successfully.
 - `/api/health` returned `200` with the deployed SHA and `/api/ready` returned `200`.
 - A signed-out request to `/api/projects` returned the expected `401 AUTH_REQUIRED` response.
 - New native Supabase Auth public variables are configured for Preview and Production. Legacy encrypted variables remain temporarily available only for rollback during the 24-hour soak.
@@ -56,10 +56,13 @@ Replace the legacy identity provider with native Supabase Google OAuth and manda
 - `preview.brief.z2zs.space` resolves globally to Vercel and has a valid Vercel alias and certificate.
 - Google Cloud reported no billing account for the project. Supabase, Cloudflare, and Vercel remained on free plans; no paid upgrade was accepted.
 - A hosted configuration attempt exposed that the CLI could propose paid Vector Storage by default. The provider rejected it with a payment-required response, no upgrade occurred, the staging Auth values were restored immediately, and the repository now contains an explicit disable guard plus regression coverage.
+- Dedicated Google OAuth clients were created for staging/local and production, then enabled in their matching Supabase Auth projects. The previous provider's OAuth client remains isolated for the rollback soak.
+- A first non-production client secret appeared in sanitized work evidence during credential setup. It was never used by the application; it was immediately replaced, disabled, and permanently deleted before the replacement was connected to Supabase.
+- Vercel Authentication was removed from Preview after it intercepted the Google callback. The Preview remains protected by native Google sign-in and mandatory TOTP/AAL2; no paid Deployment Protection add-on was enabled.
+- The public Preview returned `200` for `/api/health` with SHA `7885587b0702b3250dd3761f55907cd968b9f62c` and `200` for `/api/ready`. A real Google redirect reached the native TOTP enrollment gate.
 
 ## Handoffs and remaining gates
 
-- Configure dedicated non-production and production Google OAuth clients in the hosted Supabase projects, exact site/redirect URLs, TOTP, and asymmetric signing keys.
-- Complete hosted Google/TOTP/AAL2 configuration, apply the forward-only hosted migrations, and complete owner CRUD, cross-user RLS, refresh, sign-out, and Notion smoke tests.
+- Complete owner TOTP verification, AAL2 project CRUD, cross-user RLS, refresh, sign-out, and Notion smoke tests.
 - Keep the previous provider's encrypted variables and trust configuration only as a rollback boundary during the 24-hour soak. Do not delete external applications, OAuth clients, or DNS records yet.
 - After a clean 24-hour soak, execute BL-017 to remove the previous provider's Vercel variables, Supabase trust, dedicated OAuth credentials, application, and only its Cloudflare verification/delegation records. Preserve all mail and application DNS records.
