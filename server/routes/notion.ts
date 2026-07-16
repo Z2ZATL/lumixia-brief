@@ -54,7 +54,7 @@ export function createNotionRouter(service: NotionService, config: AppConfig) {
     '/notion/disconnect',
     asyncRoute(async (req, res) => {
       await service.disconnect(requestIdentity(req));
-      res.sendStatus(204);
+      res.json({ disconnected: true });
     }),
   );
   router.post(
