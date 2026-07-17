@@ -4,9 +4,9 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled during this milestone)
-- Commits: `2440e15`, `c725c20`, `ac34101`, `7885587`, `55854cf`, `8455510`, `7688f39`, `936a6ad`, `db6c7c8`
-- PR: [#24](https://github.com/Z2ZATL/lumixia-brief/pull/24) (draft, stacked on backend PR #23)
-- CI: [run 29508110218](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29508110218) — Required CI passed
+- Rebased commits through live evidence: `b9617bd`, `818616b`, `cc0b042`, `e7abd05`, `693bd4d`, `65d8463`, `1036607`, `f113630`, `92949e8`, `2d174ef`
+- PR: [#24](https://github.com/Z2ZATL/lumixia-brief/pull/24) (rebased onto `main` after backend PR #23 merged)
+- CI: [run 29599256679](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29599256679) — Required CI passed before the history-only rebase
 
 ## Sanitized owner instruction
 
@@ -86,3 +86,4 @@ Sanitized owner instruction: retain the working two-factor flow, determine wheth
 - The approved v2 revision updated the same Notion page, changed its title to v2, preserved the complete v1 content, and appended complete v2 content including the edited timeline and risks. A direct workspace search returned one matching project page after both the duplicate-v1 and v2 sync operations.
 - Browser console inspection returned no warnings or errors. Hosted logs showed successful `2xx` responses for the authenticated project, interview, brief, parent-selection, and Notion sync routes; no prompt, answer, OAuth value, TOTP, token, user identifier, or provider payload was copied into this ledger.
 - The remaining live gates are a second-account cross-owner RLS denial, controlled session refresh/sign-out verification, Notion refresh-token expiry rehearsal, and an explicit disconnect/reconnect smoke. External legacy-auth deletion remains deferred until Production uses native Supabase Auth and completes a clean 24-hour soak.
+- Backend PR #23 was marked ready and rebase-merged into `main` at `fc1b21b` after all required checks passed. GitHub automatically retargeted PR #24 to `main`; its ten authentication commits were then rebased onto that exact main SHA so the PR retained only the intended 70-file Supabase Auth/Notion migration diff instead of duplicating the backend history.
