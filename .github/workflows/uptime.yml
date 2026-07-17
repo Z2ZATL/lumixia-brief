@@ -1,0 +1,63 @@
+name: Production uptime
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/uptime.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-uptime
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Public health probes
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify landing page
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl --fail --silent --show-error --location \
+            --retry 2 --retry-all-errors --max-time 20 \
+            https://brief.z2zs.space/)"
+          grep --fixed-strings --quiet 'Lumixia Brief' <<<"$body"
+
+      - name: Verify process health
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl --fail --silent --show-error \
+            --retry 2 --retry-all-errors --max-time 20 \
+            https://brief.z2zs.space/api/health)"
+          BODY="$body" node -e '
+            const value = JSON.parse(process.env.BODY);
+            if (
+              value.ok !== true ||
+              typeof value.version !== "string" ||
+              !/^[0-9a-f]{40}$/.test(value.sha)
+            ) process.exit(1);
+          '
+
+      - name: Verify database readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl --fail --silent --show-error \
+            --retry 2 --retry-all-errors --max-time 20 \
+            https://brief.z2zs.space/api/ready)"
+          BODY="$body" node -e '
+            const value = JSON.parse(process.env.BODY);
+            if (value.ready !== true) process.exit(1);
+          '
+
+      - name: Record sanitized result
+        shell: bash
+        run: echo 'Production landing, health, and readiness probes passed.' >>"$GITHUB_STEP_SUMMARY"
