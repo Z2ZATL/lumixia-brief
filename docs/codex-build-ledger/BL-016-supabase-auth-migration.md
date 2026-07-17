@@ -101,3 +101,17 @@ Sanitized owner instruction: retain the working two-factor flow, determine wheth
 - Local verification after the hosted smoke: static quality gate passed; 89 unit/API tests passed with 95.13% backend line and 84.31% branch coverage; 19 UI tests, production build, bundle gate, full and production dependency audits, and 8 desktop/mobile Playwright tests passed. The Playwright suite includes the separate-tab Notion callback flow with console and failed-request auditing.
 - The merged `main` CI and production deployment evidence runs passed. The separate Production migration job is still intentionally skipped because the repository production environment has no release secrets and `PRODUCTION_RELEASE_ENABLED` is not enabled; this remains an operations handoff rather than an application defect.
 - False-status regression commit: `a20f247`; draft [PR #27](https://github.com/Z2ZATL/lumixia-brief/pull/27); [Required CI run 29603952907](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29603952907) passed quality, Supabase Auth/RLS integration, desktop/mobile Playwright, Linux/amd64 container/SBOM, secret scan, and aggregate required checks.
+
+## Production release and Notion integrity follow-up
+
+- PR #27 was rebase-merged into `main` at `ab6126f`. Required CI and the deployment evidence workflow passed, and Production health/readiness returned `200` with the exact deployed SHA.
+- The GitHub `production` environment now contains only the Supabase access token and project reference required for forward-only migrations. A linked dry run reported that the remote database is current. The release variable remains disabled until every live gate is complete.
+- The application rollback rehearsal promoted the prior known-good deployment, verified health/readiness, then promoted the current deployment and reverified the exact SHA. No database rollback was attempted.
+- An approved operator-created synthetic founder project was inserted without calling OpenAI. Production synced approved v1 to Notion, then cloned, edited, saved, and approved v2 through the product UI.
+- Both v1 and v2 sync records completed successfully and reference one Notion page, proving that the revision updated the existing page rather than creating a duplicate. Browser inspection found no application warning, error, failed request, or page error during the sync path.
+- Database evidence confirmed one encrypted Notion connection with a refresh token and no plaintext token. No secret, owner identifier, OAuth value, answer, or brief payload was copied into evidence.
+- A refresh audit found that a non-expiring token returned after refresh inherited the old expired timestamp. A regression test now proves that the stale expiry is cleared, preventing a refresh loop.
+- The migration workflow no longer requests a long-lived database password. Supabase CLI uses the scoped access token to obtain its temporary database login.
+- `MODEL_PROVIDER_MODE=disabled` remained active in Production and no OpenAI request was made.
+
+Remaining live gates: deploy the refresh regression, run the controlled expiry rehearsal, configure scrubbed Sentry and uptime monitors, complete backup-factor and second-account denial evidence, finish the clean 24-hour soak, and execute BL-017 decommissioning.

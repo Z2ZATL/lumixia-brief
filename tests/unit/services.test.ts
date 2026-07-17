@@ -302,6 +302,43 @@ describe('Notion service failure and lifecycle paths', () => {
     });
   });
 
+  it('clears a stale expiry when the refreshed Notion token has no expiry', async () => {
+    class NonExpiringRefreshProvider extends MockNotionProvider {
+      refreshes = 0;
+
+      override async exchangeCode() {
+        return {
+          access_token: 'expired-token',
+          refresh_token: 'refresh-token',
+          workspace_id: 'workspace',
+          expires_in: -1,
+        };
+      }
+
+      override async refreshToken() {
+        this.refreshes += 1;
+        return {
+          access_token: 'fresh-token',
+          refresh_token: 'rotated-refresh-token',
+          workspace_id: 'workspace',
+        };
+      }
+    }
+
+    const store = new MemoryProjectStore();
+    const notion = new NonExpiringRefreshProvider();
+    const service = new NotionService(store, notion, config);
+    await service.completeOAuth(identity, 'code', 'state');
+
+    await expect(service.listPages(identity)).resolves.toHaveLength(2);
+    await expect(service.listPages(identity)).resolves.toHaveLength(2);
+
+    expect(notion.refreshes).toBe(1);
+    await expect(store.getNotionConnection('user-a')).resolves.toMatchObject({
+      expiresAt: null,
+    });
+  });
+
   it('returns 202 for an active sync lease and records provider failures safely', async () => {
     const { store, project } = await storedProject();
     project.briefVersions[0]!.status = 'approved';
