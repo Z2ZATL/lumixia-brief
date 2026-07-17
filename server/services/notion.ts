@@ -299,7 +299,7 @@ export class NotionService {
       botId: refreshed.bot_id ?? connection.botId,
       expiresAt: refreshed.expires_in
         ? new Date(now.getTime() + refreshed.expires_in * 1000).toISOString()
-        : connection.expiresAt,
+        : null,
       updatedAt: now.toISOString(),
     };
     await this.store.saveNotionConnection(updated, identity.token, identity.signal);
