@@ -57,7 +57,7 @@ The script is idempotent per owner and labels the record as synthetic and not ge
 
 ## Uptime and incidents
 
-Configure five-minute UptimeRobot monitors for `/`, `/api/health`, and `/api/ready`. Vercel tracks invocation/latency; Sentry tracks scrubbed errors/traces. Use request ID + deployment SHA to correlate. Do not request user content for first-line diagnosis.
+The repository-owned `Production uptime` workflow probes `/`, `/api/health`, and `/api/ready` every five minutes using a standard GitHub-hosted runner. It stores no response bodies or artifacts. Keep the matching UptimeRobot monitors as an independent external signal after the owner activates the free account. Vercel tracks invocation/latency; Sentry tracks scrubbed errors/traces. Use request ID + deployment SHA to correlate. Do not request user content for first-line diagnosis.
 
 ## Scheduled checks before submission
 

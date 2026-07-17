@@ -115,3 +115,9 @@ Sanitized owner instruction: retain the working two-factor flow, determine wheth
 - `MODEL_PROVIDER_MODE=disabled` remained active in Production and no OpenAI request was made.
 
 Remaining live gates: deploy the refresh regression, run the controlled expiry rehearsal, configure scrubbed Sentry and uptime monitors, complete backup-factor and second-account denial evidence, finish the clean 24-hour soak, and execute BL-017 decommissioning.
+
+## Repository-owned uptime baseline
+
+- Added a no-secret scheduled workflow that checks the Production landing page, process health contract, deployed SHA shape, and database readiness every five minutes.
+- The workflow records only a sanitized pass statement, uploads no response artifact, and uses the standard GitHub-hosted runner available without Actions usage charges for a public repository.
+- This baseline does not replace the independent UptimeRobot signal. External activation remains an owner-confirmed boundary because it creates an account and accepts the provider terms.
