@@ -159,6 +159,7 @@ const messages = {
     notionDescription:
       'Create an idempotent child page under the parent you select. OAuth tokens are encrypted with AES-256-GCM.',
     connected: 'Connected',
+    checkingConnection: 'Checking connection…',
     notConnected: 'Not connected',
     disconnect: 'Disconnect',
     connectNotionAction: 'Connect Notion',
@@ -381,6 +382,7 @@ const messages = {
     notionDescription:
       'สร้าง child page แบบไม่ซ้ำใต้ parent ที่คุณเลือก และเข้ารหัส OAuth token ด้วย AES-256-GCM',
     connected: 'เชื่อมต่อแล้ว',
+    checkingConnection: 'กำลังตรวจสอบการเชื่อมต่อ…',
     notConnected: 'ยังไม่เชื่อมต่อ',
     disconnect: 'ยกเลิกการเชื่อมต่อ',
     connectNotionAction: 'เชื่อมต่อ Notion',

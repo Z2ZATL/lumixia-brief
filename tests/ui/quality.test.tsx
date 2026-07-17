@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ReactNode } from 'react';
@@ -227,6 +227,32 @@ describe('quality regressions', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/open a new tab/i);
     expect(mocks.api).not.toHaveBeenCalledWith('/notion/connect');
     open.mockRestore();
+  });
+
+  it('does not show a false disconnected state while Notion status is loading', async () => {
+    let resolveStatus:
+      ((status: { connected: boolean; workspaceName: string | null }) => void) | undefined;
+    mocks.api.mockImplementation(
+      (path: string) =>
+        new Promise((resolve) => {
+          if (path !== '/notion/status') throw new Error(`Unexpected request: ${path}`);
+          resolveStatus = resolve;
+        }),
+    );
+    render(
+      <MemoryRouter>
+        <I18nProvider>
+          <Settings />
+        </I18nProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Checking connection…');
+    expect(screen.queryByText('Not connected')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /connect notion/i })).not.toBeInTheDocument();
+    await act(async () => {
+      resolveStatus?.({ connected: true, workspaceName: 'Synthetic workspace' });
+    });
+    expect(await screen.findByText(/Connected · Synthetic workspace/)).toBeVisible();
   });
 
   it('refreshes the original tab when the Notion callback reports success', async () => {
