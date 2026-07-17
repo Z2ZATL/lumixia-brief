@@ -21,6 +21,7 @@ export function Settings() {
       )}
       <ConnectionPanel
         connected={Boolean(notion.status?.connected)}
+        loading={notion.status === null && !notion.error}
         workspaceName={notion.status?.workspaceName ?? null}
         busy={notion.busy}
         t={t}

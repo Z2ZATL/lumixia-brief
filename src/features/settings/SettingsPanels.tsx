@@ -2,6 +2,7 @@ import type { Translator } from '../brief/meta';
 
 interface ConnectionPanelProps {
   connected: boolean;
+  loading: boolean;
   workspaceName: string | null;
   busy: boolean;
   t: Translator;
@@ -10,18 +11,29 @@ interface ConnectionPanelProps {
 }
 
 export function ConnectionPanel(props: ConnectionPanelProps) {
-  const status = props.connected
-    ? `${props.t('connected')}${props.workspaceName ? ` · ${props.workspaceName}` : ''}`
-    : props.t('notConnected');
+  const status = props.loading
+    ? props.t('checkingConnection')
+    : props.connected
+      ? `${props.t('connected')}${props.workspaceName ? ` · ${props.workspaceName}` : ''}`
+      : props.t('notConnected');
   return (
     <section className="connection-card">
       <div className="notion-logo">N</div>
       <div>
         <h2>Notion</h2>
         <p>{props.t('notionDescription')}</p>
-        <span className={`connection-status ${props.connected ? 'connected' : ''}`}>{status}</span>
+        <span
+          className={`connection-status ${props.connected ? 'connected' : ''}`}
+          role={props.loading ? 'status' : undefined}
+        >
+          {status}
+        </span>
       </div>
-      {props.connected ? (
+      {props.loading ? (
+        <button className="button ghost" disabled>
+          {props.t('checkingConnection')}
+        </button>
+      ) : props.connected ? (
         <button className="button ghost danger" onClick={props.onDisconnect} disabled={props.busy}>
           {props.t('disconnect')}
         </button>
