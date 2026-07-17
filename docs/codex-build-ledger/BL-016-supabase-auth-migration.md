@@ -4,9 +4,9 @@
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled during this milestone)
-- Commits: `2440e15`, `c725c20`, `ac34101`, `7885587`, `55854cf`, `8455510`, `936a6ad`
+- Commits: `2440e15`, `c725c20`, `ac34101`, `7885587`, `55854cf`, `8455510`, `7688f39`, `936a6ad`, `db6c7c8`
 - PR: [#24](https://github.com/Z2ZATL/lumixia-brief/pull/24) (draft, stacked on backend PR #23)
-- CI: [run 29500510524](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29500510524) — Required CI passed
+- CI: [run 29508110218](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29508110218) — Required CI passed
 
 ## Sanitized owner instruction
 
@@ -80,4 +80,9 @@ Sanitized owner instruction: retain the working two-factor flow, determine wheth
 - The live Notion developer console still contained three obsolete `/api/notion/callback` values. They were replaced with exact local, stable Preview, and Production `/notion/callback` URLs; the console confirmed `Connection updated`. Client credentials and workspace permissions were not changed.
 - The first live callback then returned `403 ORIGIN_DENIED` before provider exchange. A signed-out synthetic request reproduced the same result and proved that Preview still allowlisted a temporary Vercel origin. Preview `APP_URL`, `ALLOWED_ORIGIN`, and `NOTION_REDIRECT_URI` were corrected to the stable Preview domain and queued for redeployment with the next commit.
 - A real-browser regression now proves that Settings remains open, Notion callback runs in a separate tab, the callback tab closes, the original tab becomes Connected, and disconnect/reconnect remains clean on desktop and mobile. Disconnect returns an explicit JSON `200` instead of a proxy-noisy empty `204` that Chromium reported as `net::ERR_ABORTED` despite completing successfully.
-- Live connect/list/sync/duplicate/revision/disconnect smoke remains an owner-authenticated gate after the corrected Preview environment is deployed. No Notion credential, OAuth value, TOTP, user identifier, or project payload was recorded.
+- Preview was redeployed at SHA `db6c7c82801aa08170e077853e0ad38099c3dab6` and the stable alias returned `200` for health/readiness with the exact SHA. The corrected origin now reaches the protected callback boundary instead of failing origin validation.
+- The owner completed native Google sign-in and TOTP verification. The resulting AAL2 session completed authenticated project creation, six adaptive mock-model answers, the 75% readiness stop, structured brief generation, immutable v1 approval, and v2 clone/edit/save/approval without a live OpenAI request.
+- Live Notion OAuth completed in a separate tab and the original Settings page changed to Connected. Page listing returned the authorized parents, v1 synced under the selected synthetic-safe parent, and a repeated v1 sync remained on one page.
+- The approved v2 revision updated the same Notion page, changed its title to v2, preserved the complete v1 content, and appended complete v2 content including the edited timeline and risks. A direct workspace search returned one matching project page after both the duplicate-v1 and v2 sync operations.
+- Browser console inspection returned no warnings or errors. Hosted logs showed successful `2xx` responses for the authenticated project, interview, brief, parent-selection, and Notion sync routes; no prompt, answer, OAuth value, TOTP, token, user identifier, or provider payload was copied into this ledger.
+- The remaining live gates are a second-account cross-owner RLS denial, controlled session refresh/sign-out verification, Notion refresh-token expiry rehearsal, and an explicit disconnect/reconnect smoke. External legacy-auth deletion remains deferred until Production uses native Supabase Auth and completes a clean 24-hour soak.
