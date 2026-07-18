@@ -53,7 +53,53 @@ describe('backend hardening', () => {
         model: { mode: 'disabled', available: false },
         notion: { mode: 'mock', available: true },
         codex: { mode: 'enabled', available: true },
+        codexLocal: { mode: 'disabled', available: false },
       });
+  });
+
+  it('accepts validated local Codex analysis only when the demo bridge is enabled', async () => {
+    const store = new MemoryProjectStore();
+    const config = loadConfig({
+      NODE_ENV: 'test',
+      APP_URL: 'http://localhost:5173',
+      ALLOWED_ORIGIN: 'http://localhost:5173',
+      CODEX_LOCAL_BRIDGE_MODE: 'enabled',
+      MODEL_PROVIDER_MODE: 'disabled',
+      NOTION_PROVIDER_MODE: 'mock',
+      DATA_MODE: 'memory',
+    });
+    const app = createApp({
+      config,
+      store,
+      model: new DisabledModelProvider(),
+      notion: new MockNotionProvider(),
+    });
+    const created = await request(app)
+      .post('/api/projects')
+      .set(headers)
+      .send({ title: 'Codex local', initialPrompt: 'Clarify a local Codex demo.', locale: 'en' })
+      .expect(201);
+    const project = created.body.project;
+    const clientAnswerId = crypto.randomUUID();
+    const payload = {
+      clientAnswerId,
+      answer: 'Founders need a reviewed implementation brief before Codex starts building.',
+      analysis: codexAnalysis(clientAnswerId),
+    };
+    const first = await request(app)
+      .post(`/api/projects/${project.id}/interview/codex-local`)
+      .set(headers)
+      .send(payload)
+      .expect(200);
+    expect(first.body).toMatchObject({ status: 'processed', idempotent: false });
+    expect(first.body.project.answers).toHaveLength(1);
+    const repeated = await request(app)
+      .post(`/api/projects/${project.id}/interview/codex-local`)
+      .set(headers)
+      .send(payload)
+      .expect(200);
+    expect(repeated.body).toMatchObject({ status: 'processed', idempotent: true });
+    expect(repeated.body.project.answers).toHaveLength(1);
   });
 
   it('rejects invalid UUID parameters as input errors', async () => {
@@ -241,3 +287,33 @@ describe('backend hardening', () => {
     expect(recovered.body.project.answers).toHaveLength(1);
   });
 });
+
+function codexAnalysis(answerId: string) {
+  return {
+    facts: [{ statement: 'The answer is direct user evidence.', answerIds: [answerId] }],
+    assumptions: [],
+    contradictions: [],
+    dimensionAssessments: [
+      'problem',
+      'audience',
+      'outcome',
+      'scope',
+      'constraints',
+      'timeline',
+      'risks',
+      'successCriteria',
+    ].map((dimension) => ({
+      dimension,
+      level: 'partial',
+      rationale: 'The synthetic answer provides partial evidence.',
+      evidence: [],
+    })),
+    nextQuestion: {
+      text: 'What observable outcome should this create?',
+      dimension: 'outcome',
+      rationale: 'The outcome needs more evidence.',
+    },
+    shouldStop: false,
+    stopReason: 'continue',
+  };
+}

@@ -107,12 +107,23 @@ function RetryAndGenerate(props: QuestionStageProps) {
   const processed = project.answers.filter((item) => item.status === 'processed').length;
   const canGenerate =
     processed >= 5 && (project.analysis.shouldStop || project.answers.length >= 12);
+  const localCodexStatus = !props.session.busy
+    ? 'localCodexReady'
+    : project.currentQuestion
+      ? 'localCodexAnalyzing'
+      : 'localCodexDrafting';
   return (
     <>
       {props.session.error && <div className="alert error">{props.session.error}</div>}
       {!props.session.modelAvailable && (
         <div className="alert error" role="status">
           {props.t('modelNotConfigured')}
+        </div>
+      )}
+      {props.session.processingMode === 'codex-local' && (
+        <div className="alert success" role="status">
+          {props.t(localCodexStatus)}
+          {props.session.processingModel ? ` · ${props.session.processingModel}` : ''}
         </div>
       )}
       {failed.map((item) => (

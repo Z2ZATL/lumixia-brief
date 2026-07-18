@@ -9,6 +9,11 @@ import {
   type InterviewAnalysis,
   type Project,
 } from '../../shared/contracts.js';
+import {
+  briefSystemPrompt,
+  interviewSystemPrompt,
+  modelProjectContext,
+} from '../../shared/model-prompts.js';
 import { emptyAssessments } from '../domain/confidence.js';
 
 export interface ModelProvider {
@@ -33,14 +38,6 @@ export class ModelProviderError extends Error {
   }
 }
 
-const INTERVIEW_SYSTEM = `You are Lumixia Brief's alignment analyst. Your job is not to rush into generating work. Separate verified facts from assumptions, expose contradictions, and identify decisions that still require a human.
-
-Assess exactly eight dimensions: problem, audience, outcome, scope, constraints, timeline, risks, successCriteria. Use Missing when absent, Assumed when inferred, Partial when mentioned but not decision-ready, and Clear only when specific and supported. Evidence must cite provided answer IDs and quote only a short excerpt. Never invent evidence.
-
-Choose only one next question. Priority is: blocking contradiction, essential gap (problem/audience/outcome/scope/successCriteria), lowest-scoring dimension, then risk clarification. Ask a single concise question in the project's locale. You may recommend stopping, but the server enforces final stop rules.`;
-
-const BRIEF_SYSTEM = `You are Lumixia Brief's project editor. Produce a decision-ready structured project brief using only the supplied project state. Preserve uncertainty: assumptions must remain assumptions, unresolved items go to openQuestions, and choices needing a human go to decisionsRequiringApproval. Do not fabricate dates, budgets, users, metrics, features, or technical constraints. Keep the brief concise enough to review on one page while retaining actionable detail.`;
-
 export class OpenAIModelProvider implements ModelProvider {
   private readonly responses: ModelResponseClient;
 
@@ -58,7 +55,7 @@ export class OpenAIModelProvider implements ModelProvider {
   }
 
   async analyzeInterview(project: Project, signal?: AbortSignal): Promise<InterviewAnalysis> {
-    const input = this.modelInput(project);
+    const input = modelProjectContext(project);
     return this.execute(
       () =>
         this.responses.parse(
@@ -67,7 +64,7 @@ export class OpenAIModelProvider implements ModelProvider {
             store: false,
             reasoning: { effort: 'low' },
             input: [
-              { role: 'system', content: INTERVIEW_SYSTEM },
+              { role: 'system', content: interviewSystemPrompt },
               { role: 'user', content: JSON.stringify(input) },
             ],
             text: { format: zodTextFormat(interviewAnalysisSchema, 'interview_analysis') },
@@ -79,7 +76,7 @@ export class OpenAIModelProvider implements ModelProvider {
   }
 
   async generateBrief(project: Project, signal?: AbortSignal): Promise<GeneratedBrief> {
-    const input = this.modelInput(project);
+    const input = modelProjectContext(project);
     return this.execute(
       () =>
         this.responses.parse(
@@ -88,7 +85,7 @@ export class OpenAIModelProvider implements ModelProvider {
             store: false,
             reasoning: { effort: 'medium' },
             input: [
-              { role: 'system', content: BRIEF_SYSTEM },
+              { role: 'system', content: briefSystemPrompt },
               { role: 'user', content: JSON.stringify(input) },
             ],
             text: { format: zodTextFormat(generatedBriefSchema, 'generated_brief') },
@@ -97,20 +94,6 @@ export class OpenAIModelProvider implements ModelProvider {
         ),
       generatedBriefSchema,
     );
-  }
-
-  private modelInput(project: Project) {
-    return {
-      locale: project.locale,
-      initialIdea: project.initialPrompt,
-      answers: project.answers.map((answer) => ({
-        id: answer.id,
-        question: answer.question,
-        dimension: answer.dimension,
-        answer: answer.text,
-      })),
-      previousAnalysis: project.analysis,
-    };
   }
 
   private async execute<T>(

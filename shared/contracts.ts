@@ -186,6 +186,10 @@ export const capabilityStatusSchema = z.object({
     mode: z.enum(['disabled', 'enabled']),
     available: z.boolean(),
   }),
+  codexLocal: z.object({
+    mode: z.enum(['disabled', 'enabled']),
+    available: z.boolean(),
+  }),
 });
 
 export type CapabilityStatus = z.infer<typeof capabilityStatusSchema>;
@@ -211,12 +215,20 @@ export const codexInterviewTurnInputSchema = z
   })
   .strict();
 
+export const codexLocalInterviewInputSchema = codexInterviewTurnInputSchema.omit({
+  projectId: true,
+});
+export type CodexLocalInterviewInput = z.infer<typeof codexLocalInterviewInputSchema>;
+
 export const codexBriefDraftInputSchema = z
   .object({
     projectId: z.string().uuid(),
     brief: generatedBriefSchema,
   })
   .strict();
+
+export const codexLocalBriefInputSchema = z.object({ brief: generatedBriefSchema }).strict();
+export type CodexLocalBriefInput = z.infer<typeof codexLocalBriefInputSchema>;
 
 export const submitAnswerInputSchema = z
   .object({

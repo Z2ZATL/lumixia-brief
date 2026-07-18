@@ -1,4 +1,10 @@
-import type { CapabilityStatus, DimensionKey, Project } from '../../shared/contracts';
+import type {
+  CapabilityStatus,
+  CodexLocalBriefInput,
+  CodexLocalInterviewInput,
+  DimensionKey,
+  Project,
+} from '../../shared/contracts';
 import { expireBrowserSession, getAccessToken, refreshAccessToken } from '../auth/client';
 
 export class ApiError extends Error {
@@ -89,6 +95,15 @@ export const projectApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  submitCodexAnswer: (id: string, input: CodexLocalInterviewInput) =>
+    api<{
+      project: Project;
+      status: 'processed' | 'pending' | 'failed';
+      idempotent: boolean;
+    }>(`/projects/${id}/interview/codex-local`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   retryAnswer: (id: string, clientAnswerId: string) =>
     api<{
       project: Project;
@@ -97,6 +112,11 @@ export const projectApi = {
     }>(`/projects/${id}/interview/answers/${clientAnswerId}/retry`, { method: 'POST' }),
   generateBrief: (id: string) =>
     api<{ project: Project }>(`/projects/${id}/briefs/generate`, { method: 'POST' }),
+  generateCodexBrief: (id: string, input: CodexLocalBriefInput) =>
+    api<{ project: Project }>(`/projects/${id}/briefs/codex-local`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   editBrief: (id: string, input: unknown) =>
     api<{ project: Project }>(`/projects/${id}/briefs/current`, {
       method: 'PATCH',

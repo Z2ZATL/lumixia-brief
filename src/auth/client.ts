@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { clearCodexBridgeSession } from '../lib/codexBridge';
 
 const authMode =
   (import.meta.env['VITE_AUTH_MODE'] as 'local-demo' | 'supabase' | undefined) ?? 'local-demo';
@@ -63,6 +64,7 @@ export async function expireBrowserSession(): Promise<void> {
 export function clearAuthCache(): void {
   localStorage.removeItem(authStorageKey);
   sessionStorage.removeItem(returnPathKey);
+  clearCodexBridgeSession();
 }
 
 export function rememberReturnPath(path: string): void {

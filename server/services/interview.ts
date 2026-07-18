@@ -104,6 +104,18 @@ export class InterviewService {
       (answer) => answer.clientAnswerId === input.clientAnswerId,
     );
     if (existingAnswer) {
+      if (existingAnswer.text !== input.answer) {
+        throw new HttpError(409, 'IDEMPOTENCY_CONFLICT', 'Stored answer content does not match.');
+      }
+      if (existingAnswer.status === 'processed') {
+        return {
+          httpStatus: 200 as const,
+          project,
+          answer: existingAnswer,
+          status: 'processed' as const,
+          idempotent: true,
+        };
+      }
       this.assertAnalysis(input.analysis, project, input.clientAnswerId);
       const existingInput: SubmitAnswerInput = {
         clientAnswerId: input.clientAnswerId,
@@ -111,7 +123,13 @@ export class InterviewService {
         dimension: existingAnswer.dimension,
         answer: input.answer,
       };
-      const claim = await this.claimCodexTurn(identity, project, existingInput, input.analysis);
+      const claim = await this.claimCodexTurn(
+        identity,
+        project,
+        existingInput,
+        input.analysis,
+        true,
+      );
       const duplicate = await this.resolveClaim(identity, project, input.clientAnswerId, claim);
       if (duplicate) return duplicate;
       return this.finishCodexTurn(identity, project, existingAnswer, input.analysis, true);
@@ -126,7 +144,7 @@ export class InterviewService {
       answer: input.answer,
     };
     this.assertAnalysis(input.analysis, project, input.clientAnswerId);
-    const claim = await this.claimCodexTurn(identity, project, answerInput, input.analysis);
+    const claim = await this.claimCodexTurn(identity, project, answerInput, input.analysis, false);
     const duplicate = await this.resolveClaim(identity, project, input.clientAnswerId, claim);
     if (duplicate) return duplicate;
     const answer = this.createAnswer(answerInput, input.clientAnswerId);
@@ -140,13 +158,14 @@ export class InterviewService {
     project: Project,
     input: SubmitAnswerInput,
     analysis: InterviewAnalysis,
+    retryFailed: boolean,
   ) {
     return this.store.claimInterviewTurn(
       identity.ownerId,
       project.id,
       input.clientAnswerId,
       { ...input, source: 'codex', analysis },
-      false,
+      retryFailed,
       identity.token,
       identity.signal,
     );

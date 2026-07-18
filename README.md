@@ -8,7 +8,7 @@
 **Source:** <https://github.com/Z2ZATL/lumixia-brief><br>
 **Demo URL:** <https://brief.z2zs.space>
 
-Lumixia Brief is a React web app that turns an unclear project idea into a reviewable, versioned one-page brief. GPT-5.6 asks one adaptive question per submitted answer, identifies facts, assumptions, and contradictions, and assesses eight clarity dimensions. The server calculates the score and decides when the brief is ready. A human must review and approve an immutable snapshot before Notion receives anything.
+Lumixia Brief is a React web app that turns an unclear project idea into a reviewable, versioned one-page brief. Codex local demo mode or the live GPT-5.6 provider asks one adaptive question per submitted answer, identifies facts, assumptions, and contradictions, and assesses eight clarity dimensions. The server calculates the score and decides when the brief is ready. A human must review and approve an immutable snapshot before Notion receives anything.
 
 ## Three-minute product path
 
@@ -26,6 +26,8 @@ flowchart LR
   U["Founder / PM / Agency"] --> C["Supabase Auth\nGoogle OAuth + TOTP"]
   X["Codex desktop / CLI\nowner-operated model"] --> C
   C --> V["Vite React on Vercel CDN"]
+  V --> L["Loopback demo bridge\nCodex CLI + ChatGPT plan"]
+  L --> V
   V --> E["Express /api function"]
   C --> E
   E --> O["OpenAI Responses API\nGPT-5.6, store:false"]
@@ -39,6 +41,7 @@ flowchart LR
 - `server/domain/` — deterministic confidence, question priority, stop rules, and workflow invariants.
 - `server/providers/` — live/mock OpenAI and Notion adapters.
 - `server/mcp/` — authenticated Streamable HTTP tools for an owner-operated Codex session.
+- `scripts/codex-bridge/` — loopback-only Codex CLI runner for the no-API-charge video demo.
 - `server/store/` — in-memory test adapter and Supabase adapter using the verified Supabase JWT.
 - `shared/contracts.ts` — strict Zod contracts shared by client and server.
 - `supabase/migrations/` — forward-only schema and forced RLS policies.
@@ -69,6 +72,14 @@ npm run supabase:reset
 
 Then set `AUTH_MODE=supabase`, `VITE_AUTH_MODE=supabase`, and `DATA_MODE=supabase`, and provide the local Supabase URL/publishable key. Local Google OAuth remains off unless you explicitly add non-production credentials; CI creates synthetic local Auth users without adding a service-role key to the app runtime.
 
+For the owner-operated Codex demo, start a second terminal before opening **Connections**:
+
+```powershell
+npm run codex:bridge
+```
+
+The worker binds only to `127.0.0.1:8790`, uses the Codex login already stored on this computer, and never prints or persists a pairing token outside browser `sessionStorage`. Click **Connect local Codex** in Lumixia; Chrome may ask once for local-network permission. The token is cleared on sign-out.
+
 ## Environment variables
 
 | Variable                                   | Local default  | Preview / production purpose                                   |
@@ -84,13 +95,14 @@ Then set `AUTH_MODE=supabase`, `VITE_AUTH_MODE=supabase`, and `DATA_MODE=supabas
 | `OPENAI_API_KEY`                           | empty          | Required only when `MODEL_PROVIDER_MODE=live`                  |
 | `OPENAI_MODEL`                             | `gpt-5.6`      | Interview and brief model                                      |
 | `CODEX_MCP_MODE`                           | `enabled`      | Enables the authenticated owner-operated Codex MCP endpoint    |
+| `CODEX_LOCAL_BRIDGE_MODE`                  | `enabled`      | Allows an AAL2 browser to submit validated local-Codex results |
 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | empty          | Notion public integration credentials                          |
 | `NOTION_REDIRECT_URI`                      | local callback | Exact OAuth callback registered in Notion                      |
 | `TOKEN_ENCRYPTION_KEY`                     | empty          | Base64-encoded 32-byte AES-256-GCM key                         |
 | `OAUTH_STATE_SECRET`                       | empty          | At least 32 random characters for signed, expiring OAuth state |
 | `SENTRY_DSN`, `VITE_SENTRY_DSN`            | empty          | Optional scrubbed error/tracing destination; Replay stays off  |
 
-Production startup rejects a mock model, mock Notion, memory data, auth bypass, or missing security/provider credentials. Until the paid model smoke test is authorized, production uses `MODEL_PROVIDER_MODE=disabled`; interview and generation return the explicit `503 MODEL_NOT_CONFIGURED` response without constructing an OpenAI client. Preview uses a deterministic model mock with live Notion and staging Supabase. The protected `GET /api/capabilities` endpoint reports the active model and Notion modes to the signed-in client.
+Production startup rejects a mock model, mock Notion, memory data, auth bypass, or missing security/provider credentials. Until the paid model smoke test is authorized, production uses `MODEL_PROVIDER_MODE=disabled` and constructs no OpenAI client. When `CODEX_LOCAL_BRIDGE_MODE=enabled`, a paired owner browser can still run the adaptive interview through local Codex; otherwise interview and generation return the explicit `503 MODEL_NOT_CONFIGURED`. Preview uses a deterministic model mock with live Notion and staging Supabase. The protected `GET /api/capabilities` endpoint reports model, Notion, MCP, and local-bridge support.
 
 Vercel Preview derives its exact origin from the stable `VERCEL_BRANCH_URL` system variable (falling back to `VERCEL_URL`), while Production requires an explicit `APP_URL`. This keeps CORS and OAuth callbacks aligned across new commits without hard-coding a changing deployment URL.
 
@@ -119,9 +131,22 @@ default_tools_approval_mode = "writes"
 
 Then run `codex mcp login lumixia_brief` if the command-line client has not opened the consent flow automatically. Hosted setup requires Supabase OAuth Server, Dynamic Client Registration, the `/oauth/consent` authorization path, and asymmetric signing to be enabled. See [the Codex MCP runbook](docs/operations/codex-mcp.md).
 
+### Website interview through local Codex
+
+The Build Week video uses a second owner-operated path so the user can answer inside the website:
+
+```text
+Website answer → 127.0.0.1 Codex bridge → structured analysis
+→ authenticated Lumixia API → server confidence/stop rules → next website question
+```
+
+The bridge runs `codex exec` ephemerally in an empty temporary directory with ignored user configuration, no MCP servers, `read-only` sandboxing, approval policy `never`, and strict JSON Schema output. The installed CLI is pinned as a development dependency. Only the exact Lumixia origins can call it, a memory-only pairing token is required, one operation runs at a time, and response bodies are never logged. The website posts the validated result through its existing AAL2 session; local Codex never receives the Supabase token and cannot approve or sync to Notion.
+
+This mode uses the owner's ChatGPT/Codex plan allowance, not an OpenAI Platform API key. It is intentionally a video-demo capability: the owner's computer and worker must stay online, and it must not be exposed as a shared public inference service.
+
 ## Interview and model contract
 
-One GPT-5.6 Responses API call occurs only after the user submits an answer—never while typing. Interview calls use low reasoning; final brief generation uses medium reasoning. Both use strict Structured Outputs. OpenAI requests set `store:false` and time out after 30 seconds. Only 429/5xx receives one retry.
+Both runtime paths execute only after submit—never while typing. Local Codex uses low reasoning for interview turns and medium reasoning for the brief with strict JSON Schema output. Live API mode uses GPT-5.6 Responses API Structured Outputs, `store:false`, a 30-second timeout, and one retry only for 429/5xx.
 
 The live adapter is contract-tested with an injected fake Responses client, so `store:false`, reasoning levels, schemas, retry behavior, refusal handling, and error mapping are verified without paid API usage. Enabling the live path later requires only an OpenAI key, `MODEL_PROVIDER_MODE=live`, a gated deployment, and one synthetic contract smoke test.
 
@@ -239,7 +264,7 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 - Confidence measures interview completeness, not factual truth or model accuracy.
 - Google-only login depends on completing the documented Google and Supabase Auth provider configuration.
 - Local mock mode is deterministic evidence for development, not a substitute for the live provider smoke tests.
-- The Codex MCP path is an interactive, owner-operated alternative. It is not a background Responses API provider and does not make the web app autonomous.
+- The Codex MCP path is interactive. The loopback bridge makes the website autonomous only while the owner's local worker is online; neither path is a public replacement for the Responses API.
 - Vercel Hobby is appropriate only for this personal, non-commercial prototype; review the plan before commercial launch.
 
 ## Troubleshooting
@@ -248,7 +273,9 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 - **API returns `MFA_REQUIRED`:** open Security, enroll or challenge a TOTP factor, and verify the refreshed Supabase token exposes `aal=aal2`.
 - **RLS returns no project:** confirm the verified Supabase token `sub` matches `owner_id` and contains `aal=aal2`.
 - **Answer shows failed:** the answer is already saved. Use Retry; do not submit a new client answer ID.
-- **Interview returns `MODEL_NOT_CONFIGURED`:** this is the intended disabled-production state before the paid live smoke test; no OpenAI request was sent.
+- **Interview asks to connect local Codex:** run `npm run codex:bridge`, open Connections, click **Connect local Codex**, and allow Chrome's local-network prompt.
+- **Local Codex fails after pairing:** keep the answer in place, confirm the worker terminal is still ready, disconnect/reconnect the bridge, and retry the same turn.
+- **Interview returns `MODEL_NOT_CONFIGURED`:** neither the local bridge nor paid live provider is available; no OpenAI API request was sent.
 - **Codex cannot discover OAuth:** verify `/.well-known/oauth-protected-resource/api/mcp`, Supabase OAuth Server/Dynamic Client Registration, the exact `/oauth/consent` authorization path, and asymmetric JWT signing.
 - **Notion shows 401:** reconnect only if automatic refresh reports `NOTION_RECONNECT_REQUIRED`.
 - **OneDrive dev is slow:** keep daily Node development native; use Docker only for Supabase and portability gates.

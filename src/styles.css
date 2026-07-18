@@ -1401,6 +1401,11 @@ form label + label {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-height: calc(100vh - 104px);
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .alignment-card,
 .sync-card,
@@ -1819,6 +1824,9 @@ form label + label {
     position: static;
     display: grid;
     grid-template-columns: 1fr 1fr;
+    max-height: none;
+    padding-right: 0;
+    overflow: visible;
   }
   .version-card {
     grid-column: span 2;

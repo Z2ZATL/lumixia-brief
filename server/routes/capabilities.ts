@@ -19,6 +19,10 @@ export function createCapabilityRouter(config: AppConfig) {
           mode: config.CODEX_MCP_MODE,
           available: config.codexAvailable,
         },
+        codexLocal: {
+          mode: config.CODEX_LOCAL_BRIDGE_MODE,
+          available: config.codexLocalAvailable,
+        },
       }),
     );
   });

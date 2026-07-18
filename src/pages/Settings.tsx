@@ -1,10 +1,16 @@
-import { ConnectionPanel, PrivacyPanels } from '../features/settings/SettingsPanels';
+import {
+  CodexBridgePanel,
+  ConnectionPanel,
+  PrivacyPanels,
+} from '../features/settings/SettingsPanels';
+import { useCodexBridge } from '../features/settings/useCodexBridge';
 import { useNotionConnection } from '../features/settings/useNotionConnection';
 import { useI18n } from '../i18n';
 
 export function Settings() {
   const { t } = useI18n();
   const notion = useNotionConnection(t);
+  const codexBridge = useCodexBridge(t);
   return (
     <main className="page-shell settings-page">
       <div className="page-heading">
@@ -39,6 +45,19 @@ export function Settings() {
         </div>
         <span className="connection-status connected">{t('noApiCharge')}</span>
       </section>
+      {codexBridge.error && (
+        <div className="alert error" role="alert">
+          {codexBridge.error}
+        </div>
+      )}
+      <CodexBridgePanel
+        connectedModel={codexBridge.status?.model ?? null}
+        supported={codexBridge.supported}
+        busy={codexBridge.busy}
+        t={t}
+        onConnect={codexBridge.connect}
+        onDisconnect={codexBridge.disconnect}
+      />
       <PrivacyPanels t={t} />
     </main>
   );

@@ -1,7 +1,11 @@
 import { Router } from 'express';
-import { editBriefInputSchema, requestChangesInputSchema } from '../../shared/contracts.js';
+import {
+  codexLocalBriefInputSchema,
+  editBriefInputSchema,
+  requestChangesInputSchema,
+} from '../../shared/contracts.js';
 import type { AppConfig } from '../config.js';
-import { perUserRateLimit } from '../http.js';
+import { HttpError, perUserRateLimit } from '../http.js';
 import { BriefService } from '../services/briefs.js';
 import { asyncRoute, projectId, requestIdentity, validateBody } from './request.js';
 
@@ -12,6 +16,19 @@ export function createBriefRouter(service: BriefService, config: AppConfig) {
     perUserRateLimit(config, 8, 60),
     asyncRoute(async (req, res) => {
       const result = await service.generate(requestIdentity(req), projectId(req));
+      res.status(result.httpStatus).json(result);
+    }),
+  );
+  router.post(
+    '/projects/:projectId/briefs/codex-local',
+    perUserRateLimit(config, 8, 60),
+    validateBody(codexLocalBriefInputSchema),
+    asyncRoute(async (req, res) => {
+      if (!config.codexLocalAvailable) {
+        throw new HttpError(503, 'CODEX_LOCAL_DISABLED', 'The local Codex bridge is disabled.');
+      }
+      const { brief } = codexLocalBriefInputSchema.parse(req.body);
+      const result = await service.generateFromCodex(requestIdentity(req), projectId(req), brief);
       res.status(result.httpStatus).json(result);
     }),
   );

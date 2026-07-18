@@ -165,7 +165,12 @@ describe('Supabase owner + MFA RLS', () => {
   it('recovers failed and stale interview leases without duplicating a turn', async () => {
     const failedId = crypto.randomUUID();
     const staleId = crypto.randomUUID();
-    const failedPayload = { answer: 'retry this exact payload' };
+    const failedPayload = { answer: 'retry this answer' };
+    const bridgePayload = {
+      answer: 'retry this answer',
+      source: 'codex',
+      analysis: { dimensions: 8 },
+    };
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
       await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-a', aal: 'aal2', role: 'authenticated' })}, true)`;
@@ -182,9 +187,12 @@ describe('Supabase owner + MFA RLS', () => {
       expect(duplicate[0]?.['claim_state']).toBe('duplicate');
       expect(duplicate[0]?.['turn_status']).toBe('failed');
       const retry = await tx`select * from public.claim_interview_turn(
-        'user-a', ${operationProjectId}, ${failedId}, ${tx.json(failedPayload)}, true
+        'user-a', ${operationProjectId}, ${failedId}, ${tx.json(bridgePayload)}, true
       )`;
       expect(retry[0]?.['claim_state']).toBe('claimed');
+      const replaced = await tx`select payload from public.answer_claims
+        where client_answer_id = ${failedId}`;
+      expect(replaced[0]?.['payload']).toEqual(bridgePayload);
       await tx`select public.complete_interview_turn(
         'user-a', ${operationProjectId}, ${failedId}, 'processed',
         ${tx.json({ id: operationProjectId })}, null

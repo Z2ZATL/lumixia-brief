@@ -29,6 +29,7 @@ const environmentSchema = z.object({
     .optional(),
   SENTRY_DSN: z.string().optional(),
   CODEX_MCP_MODE: z.enum(['disabled', 'enabled']).default('enabled'),
+  CODEX_LOCAL_BRIDGE_MODE: z.enum(['disabled', 'enabled']).default('disabled'),
   MODEL_PROVIDER_MODE: z.enum(['disabled', 'live', 'mock']).default('mock'),
   NOTION_PROVIDER_MODE: z.enum(['live', 'mock']).default('mock'),
   DATA_MODE: z.enum(['supabase', 'memory']).default('memory'),
@@ -62,6 +63,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
     deploymentSha: config.VERCEL_GIT_COMMIT_SHA ?? 'local',
     modelAvailable: config.MODEL_PROVIDER_MODE !== 'disabled',
     codexAvailable: config.CODEX_MCP_MODE === 'enabled',
+    codexLocalAvailable: config.CODEX_LOCAL_BRIDGE_MODE === 'enabled',
     mcpResource,
     mcpMetadataUrl: `${appUrl}/.well-known/oauth-protected-resource/api/mcp`,
   };
