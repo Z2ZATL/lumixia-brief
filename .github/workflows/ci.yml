@@ -182,13 +182,15 @@ jobs:
     name: Production migration gate
     if: >-
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      vars.PRODUCTION_RELEASE_ENABLED == 'true'
+      github.ref == 'refs/heads/main'
     needs: [ci-success]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
     steps:
+      - name: Require an enabled production release
+        shell: bash
+        run: test "${{ vars.PRODUCTION_RELEASE_ENABLED }}" = "true"
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.sha }}
