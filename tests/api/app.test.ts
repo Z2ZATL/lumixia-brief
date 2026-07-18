@@ -97,6 +97,22 @@ describe('Lumixia API', () => {
     expect(denied.headers['www-authenticate']).toContain(
       '/.well-known/oauth-protected-resource/api/mcp',
     );
+    expect(denied.headers['www-authenticate']).toContain('error="invalid_token"');
+
+    const needsGrant = await request(app)
+      .post('/api/mcp')
+      .set({ ...headers, authorization: 'Bearer test-aal1' })
+      .send(mcpInitialize())
+      .expect(403);
+    expect(needsGrant.headers['www-authenticate']).toContain('error="insufficient_scope"');
+    expect(needsGrant.headers['www-authenticate']).toContain('TOTP');
+
+    const invalid = await request(app)
+      .post('/api/mcp')
+      .set({ ...headers, authorization: 'Bearer invalid' })
+      .send(mcpInitialize())
+      .expect(401);
+    expect(invalid.headers['www-authenticate']).toContain('error="invalid_token"');
   });
 
   it('initializes the Codex MCP server, advertises safe tools, and creates idempotently', async () => {

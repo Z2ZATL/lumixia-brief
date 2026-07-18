@@ -23,6 +23,7 @@ export function requireMcpIdentity(config: AppConfig, verifier: IdentityVerifier
       const identity = await verifier.verify(
         token,
         req.requestSignal ?? new AbortController().signal,
+        'mcp',
       );
       if (config.AUTH_MODE === 'supabase' && !identity.clientId) {
         throw new HttpError(401, 'MCP_OAUTH_REQUIRED', 'Connect through Supabase OAuth first.');
@@ -68,6 +69,10 @@ function isAuthenticationError(error: unknown): error is HttpError {
 }
 
 function challenge(config: AppConfig, code: string): string {
-  const error = code === 'AUTH_REQUIRED' ? 'invalid_token' : 'insufficient_scope';
-  return `Bearer resource_metadata="${config.mcpMetadataUrl}", scope="openid", error="${error}", error_description="Lumixia Brief requires OAuth and TOTP"`;
+  const grantRequired = code === 'MCP_MFA_GRANT_REQUIRED' || code === 'MFA_REQUIRED';
+  const error = grantRequired ? 'insufficient_scope' : 'invalid_token';
+  const description = grantRequired
+    ? 'Reconnect after completing TOTP approval in Lumixia Brief'
+    : 'Lumixia Brief requires a valid Supabase OAuth token';
+  return `Bearer resource_metadata="${config.mcpMetadataUrl}", scope="openid", error="${error}", error_description="${description}"`;
 }

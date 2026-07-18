@@ -10,8 +10,14 @@ export interface VerifiedIdentity {
   clientId?: string;
 }
 
+export type IdentityContext = 'browser' | 'mcp';
+
 export interface IdentityVerifier {
-  verify(bearerToken: string, signal: AbortSignal): Promise<VerifiedIdentity>;
+  verify(
+    bearerToken: string,
+    signal: AbortSignal,
+    context?: IdentityContext,
+  ): Promise<VerifiedIdentity>;
 }
 
 const uuidSchema = z.string().uuid();
@@ -21,9 +27,11 @@ const identityClaimsSchema = z.object({
   aud: z.unknown(),
   role: z.literal('authenticated'),
   sub: uuidSchema,
-  aal: z.string(),
+  aal: z.enum(['aal1', 'aal2']),
   client_id: z.string().trim().min(1).max(200).optional(),
 });
+
+type IdentityClaims = z.infer<typeof identityClaimsSchema>;
 
 export class LocalDemoIdentityVerifier implements IdentityVerifier {
   async verify(_bearerToken: string, signal: AbortSignal): Promise<VerifiedIdentity> {
@@ -42,7 +50,11 @@ export class SupabaseIdentityVerifier implements IdentityVerifier {
     private readonly publishableKey: string,
   ) {}
 
-  async verify(bearerToken: string, signal: AbortSignal): Promise<VerifiedIdentity> {
+  async verify(
+    bearerToken: string,
+    signal: AbortSignal,
+    context: IdentityContext = 'browser',
+  ): Promise<VerifiedIdentity> {
     if (tokenExpired(bearerToken)) {
       throw new HttpError(401, 'AUTH_SESSION_EXPIRED', 'Your session expired. Sign in again.');
     }
@@ -55,32 +67,72 @@ export class SupabaseIdentityVerifier implements IdentityVerifier {
       const { data, error } = await client.auth.getClaims(bearerToken);
       if (signal.aborted) throw unavailable();
       if (error || !data) throw invalidToken();
-      return validateClaims(data.claims, `${this.url}/auth/v1`, bearerToken);
+      const claims = validateClaims(data.claims, `${this.url}/auth/v1`);
+      if (context === 'browser') return browserIdentity(claims, bearerToken);
+      return await this.mcpIdentity(
+        claims,
+        bearerToken,
+        signal,
+        async () => await client.rpc('verify_codex_oauth_grant'),
+      );
     } catch (error) {
       if (error instanceof HttpError) throw error;
       if (error instanceof TypeError || signal.aborted) throw unavailable();
       throw invalidToken();
     }
   }
+
+  private async mcpIdentity(
+    claims: IdentityClaims,
+    bearerToken: string,
+    signal: AbortSignal,
+    verifyGrant: () => Promise<{ data: unknown; error: unknown }>,
+  ): Promise<VerifiedIdentity> {
+    if (!claims.client_id) {
+      throw new HttpError(401, 'MCP_OAUTH_REQUIRED', 'Connect through Supabase OAuth first.');
+    }
+    const { data, error } = await verifyGrant();
+    if (signal.aborted) throw unavailable();
+    if (error) throw unavailable();
+    if (data !== true) {
+      throw new HttpError(
+        403,
+        'MCP_MFA_GRANT_REQUIRED',
+        'Reconnect Codex after completing TOTP approval in Lumixia Brief.',
+      );
+    }
+    return verifiedIdentity(claims, bearerToken);
+  }
 }
 
-function validateClaims(
-  claims: unknown,
-  expectedIssuer: string,
-  bearerToken: string,
-): VerifiedIdentity {
+function validateClaims(claims: unknown, expectedIssuer: string): IdentityClaims {
   const parsed = identityClaimsSchema.safeParse(claims);
   if (!parsed.success) throw invalidToken();
   if (parsed.data.iss !== expectedIssuer) throw invalidToken();
   if (!validAudience(parsed.data.aud)) throw invalidToken();
-  if (parsed.data.aal !== 'aal2') {
+  return parsed.data;
+}
+
+function browserIdentity(claims: IdentityClaims, bearerToken: string): VerifiedIdentity {
+  if (claims.client_id) {
+    throw new HttpError(
+      403,
+      'MCP_TOKEN_NOT_ALLOWED',
+      'Codex OAuth tokens can only access the MCP endpoint.',
+    );
+  }
+  if (claims.aal !== 'aal2') {
     throw new HttpError(403, 'MFA_REQUIRED', 'Complete TOTP verification before continuing.');
   }
+  return verifiedIdentity(claims, bearerToken);
+}
+
+function verifiedIdentity(claims: IdentityClaims, bearerToken: string): VerifiedIdentity {
   return {
-    userId: parsed.data.sub,
+    userId: claims.sub,
     accessToken: bearerToken,
     aal: 'aal2',
-    ...(parsed.data.client_id ? { clientId: parsed.data.client_id } : {}),
+    ...(claims.client_id ? { clientId: claims.client_id } : {}),
   };
 }
 

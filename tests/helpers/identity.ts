@@ -1,5 +1,9 @@
 import { HttpError } from '../../server/http.js';
-import type { IdentityVerifier, VerifiedIdentity } from '../../server/security/identity.js';
+import type {
+  IdentityContext,
+  IdentityVerifier,
+  VerifiedIdentity,
+} from '../../server/security/identity.js';
 
 const owners: Record<string, string> = {
   'test-user-a': 'user-a',
@@ -7,7 +11,11 @@ const owners: Record<string, string> = {
 };
 
 export class TestIdentityVerifier implements IdentityVerifier {
-  async verify(bearerToken: string, signal: AbortSignal): Promise<VerifiedIdentity> {
+  async verify(
+    bearerToken: string,
+    signal: AbortSignal,
+    context: IdentityContext = 'browser',
+  ): Promise<VerifiedIdentity> {
     if (signal.aborted || bearerToken === 'test-unavailable') {
       throw new HttpError(503, 'AUTH_PROVIDER_UNAVAILABLE', 'Identity verification unavailable.');
     }
@@ -23,7 +31,7 @@ export class TestIdentityVerifier implements IdentityVerifier {
       userId,
       accessToken: bearerToken,
       aal: 'aal2',
-      clientId: '22222222-2222-4222-8222-222222222222',
+      ...(context === 'mcp' ? { clientId: '22222222-2222-4222-8222-222222222222' } : {}),
     };
   }
 }

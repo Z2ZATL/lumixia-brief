@@ -1,6 +1,6 @@
 # BL-018 — Owner-operated Codex MCP integration
 
-- Status: implementation complete; hosted Supabase OAuth activation and live Codex consent smoke pending
+- Status: hosted OAuth enabled; AAL transfer defect fixed in code; migration, redeploy, and live Codex smoke pending
 - Date started: 2026-07-18
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
@@ -26,6 +26,9 @@ Add a Lumixia Brief connection for Codex so the owner can run the adaptive inter
 - Made a repeated final interview turn return the stored result instead of failing after the stop gate.
 - Added an OAuth consent route, Codex Settings guidance, EN/TH copy, operator runbook, and architecture decision.
 - Kept the OpenAI API client unconstructed on this path; no paid model call was made.
+- A live Codex initialization exposed that Supabase OAuth Server issues its separate OAuth session as `aal1` even when consent is approved from an AAL2 browser session. The earlier bearer challenge mislabeled this as a scope problem.
+- Added a time-bounded owner/client grant that can only be created from direct AAL2 consent. Express and RLS verify it on every Codex request without rewriting the OAuth token's real `aal` claim.
+- Added database-level boundaries that allow Codex draft/interview work while independently blocking approval, deletion, and Notion access.
 
 ## Regression evidence
 
@@ -36,7 +39,7 @@ Add a Lumixia Brief connection for Codex so the owner can run the adaptive inter
 - Full backend coverage suite passed 104 tests: 94.67% lines, 83.26% branches, 91.99% statements, and 91.81% functions.
 - Playwright passed 8 desktop/mobile product-path checks without browser-console failures.
 - Production build, bundle ceiling, all/production dependency audits, and Linux/amd64 Docker build passed; both audits reported zero vulnerabilities.
-- The active local Supabase containers were left unchanged. The fresh Supabase Auth/RLS integration gate remains assigned to GitHub CI because this milestone adds no database migration.
+- The active local Supabase containers were left unchanged. The fresh Supabase Auth/RLS integration gate remains assigned to GitHub CI for the new forward-only grant migration.
 
 ## Privacy boundary
 
@@ -44,9 +47,10 @@ This entry records only sanitized implementation and verification metadata. It e
 
 ## Remaining hosted acceptance
 
-- [ ] Enable Supabase OAuth Server and Dynamic Client Registration without a paid upgrade.
-- [ ] Confirm the exact `/oauth/consent` path and asymmetric signing.
-- [ ] Deploy the exact PR SHA and verify protected-resource discovery plus the unauthenticated challenge.
+- [x] Enable Supabase OAuth Server and Dynamic Client Registration without a paid upgrade.
+- [x] Confirm the exact `/oauth/consent` path and asymmetric signing.
+- [x] Deploy the earlier PR SHA and verify protected-resource discovery plus the unauthenticated challenge.
+- [ ] Apply the AAL grant migration and deploy the corrected exact PR SHA.
 - [ ] Connect Codex interactively, approve consent after Google/TOTP, and run the synthetic smoke path.
 - [ ] Confirm sanitized Production logs and revoke the synthetic grant if it is no longer needed.
 - [ ] Record commit, PR, CI, deployment, and live evidence links above.

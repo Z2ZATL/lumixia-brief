@@ -22,8 +22,9 @@
 - Enable Google as the only sign-in strategy.
 - Require native TOTP enrollment and recommend a second verified TOTP factor on another device.
 - Use asymmetric ES256 signing keys and the publishable API-key system.
-- Express verifies the JWT signature, issuer, expiry, UUID `sub`, `role=authenticated`, and `aal=aal2` before business logic.
-- Forced RLS independently requires `sub = owner_id` and `aal=aal2`.
+- Express verifies the JWT signature, issuer, expiry, UUID `sub`, and `role=authenticated`. Browser API access additionally requires a direct `aal2` token with no OAuth client identifier.
+- Codex OAuth sessions retain their real `aal1` claim. MCP access requires `client_id`, `openid`, and a non-revoked 30-day grant created only by a direct AAL2 consent session.
+- Forced RLS independently requires `sub = owner_id` plus either direct AAL2 or the matching Codex grant. OAuth writes are restricted to drafts/interviews; approval, deletion, and Notion access require direct AAL2.
 - Set production redirect/origin allowlists exactly; do not use wildcards.
 
 ## Data and deletion

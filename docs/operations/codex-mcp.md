@@ -12,7 +12,7 @@ Connect Codex desktop, CLI, or IDE to Lumixia Brief as the authenticated project
 4. Keep Google as the sign-in provider and TOTP as the mandatory AAL2 factor.
 5. Deploy with `CODEX_MCP_MODE=enabled`, native Supabase Auth, Supabase data, and exact production origins.
 
-Supabase OAuth access tokens retain the standard `authenticated` audience. Lumixia additionally requires an OAuth `client_id`, UUID subject, authenticated role, exact issuer, unexpired token, and `aal2`; RLS still enforces ownership.
+Supabase OAuth access tokens retain the standard `authenticated` audience, but the OAuth Server creates a separate AAL1 session even when the consent UI was opened from an AAL2 browser session. Lumixia does not rewrite that claim. Before approval, the AAL2 consent UI records a 30-day grant for the exact owner and OAuth `client_id`. Express and RLS then require that grant together with `openid`, UUID subject, authenticated role, exact issuer, and an unexpired token.
 
 ## Pre-connection checks
 
@@ -36,6 +36,8 @@ default_tools_approval_mode = "writes"
 
 Run `codex mcp login lumixia_brief` if interactive authorization has not started. Sign in with Google, complete TOTP, review the requested scopes and client details, then approve consent.
 
+The grant is recorded before Supabase issues the authorization code. If the grant cannot be stored, consent stops and Codex receives no usable authorization. A reconnect renews the grant for 30 days.
+
 ## Synthetic smoke test
 
 1. List projects.
@@ -48,6 +50,6 @@ Run `codex mcp login lumixia_brief` if interactive authorization has not started
 
 ## Revoke or disable
 
-- Revoke the Codex OAuth grant in Supabase to end one owner's connection.
+- Run `select public.revoke_codex_connections()` from an owner-authenticated AAL2 operation (or use the product control when available) to end the owner's Codex connections immediately. RLS rejects existing OAuth tokens as soon as the grant is revoked.
 - Set `CODEX_MCP_MODE=disabled` and redeploy to remove metadata and MCP availability globally.
 - Do not disable native Supabase Auth, RLS, or the web application's TOTP requirement.

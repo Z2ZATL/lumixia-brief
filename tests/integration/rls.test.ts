@@ -9,6 +9,9 @@ const sql = postgres(
 describe('Supabase owner + MFA RLS', () => {
   const projectId = crypto.randomUUID();
   const operationProjectId = crypto.randomUUID();
+  const codexOwnerId = crypto.randomUUID();
+  const codexClientId = crypto.randomUUID();
+  const codexProjectId = crypto.randomUUID();
 
   beforeAll(async () => {
     await sql`insert into public.projects (
@@ -20,7 +23,8 @@ describe('Supabase owner + MFA RLS', () => {
   });
 
   afterAll(async () => {
-    await sql`delete from public.projects where id in (${projectId}, ${operationProjectId})`;
+    await sql`delete from public.projects where id in (${projectId}, ${operationProjectId}, ${codexProjectId})`;
+    await sql`delete from app.codex_oauth_grants where owner_id = ${codexOwnerId}`;
     await sql.end();
   });
 
@@ -58,6 +62,76 @@ describe('Supabase owner + MFA RLS', () => {
       await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: 'user-b', aal: 'aal2', role: 'authenticated' })}, true)`;
       const other = await tx`select id from public.projects where id = ${projectId}`;
       expect(other).toHaveLength(0);
+    });
+  });
+
+  it('transfers explicit AAL2 consent to one Codex client and preserves human-only boundaries', async () => {
+    const safeDocument = {
+      id: codexProjectId,
+      ownerId: codexOwnerId,
+      workflowStatus: 'draft',
+      syncStatus: 'not_synced',
+      notionParentId: null,
+      notionPageId: null,
+      lastSyncError: null,
+      briefVersions: [],
+    };
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local role authenticated');
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: codexOwnerId, aal: 'aal2', role: 'authenticated' })}, true)`;
+      const authorized =
+        await tx`select public.authorize_codex_connection(${codexClientId}) as authorized`;
+      expect(authorized[0]?.['authorized']).toBe(true);
+    });
+
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local role authenticated');
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: codexOwnerId, aal: 'aal1', role: 'authenticated', client_id: codexClientId, scope: 'openid' })}, true)`;
+      const verified = await tx`select public.verify_codex_oauth_grant() as verified`;
+      expect(verified[0]?.['verified']).toBe(true);
+      await tx`insert into public.projects (
+        id, owner_id, title, workflow_status, sync_status, document
+      ) values (
+        ${codexProjectId}, ${codexOwnerId}, 'Codex draft', 'draft', 'not_synced',
+        ${tx.json(safeDocument)}
+      )`;
+      const own = await tx`select id from public.projects where id = ${codexProjectId}`;
+      expect(own).toHaveLength(1);
+    });
+
+    await expect(
+      sql.begin(async (tx) => {
+        await tx.unsafe('set local role authenticated');
+        await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: codexOwnerId, aal: 'aal1', role: 'authenticated', client_id: codexClientId, scope: 'openid' })}, true)`;
+        await tx`update public.projects
+          set workflow_status = 'approved',
+              document = ${tx.json({ ...safeDocument, workflowStatus: 'approved' })}
+          where id = ${codexProjectId}`;
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      sql.begin(async (tx) => {
+        await tx.unsafe('set local role authenticated');
+        await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: codexOwnerId, aal: 'aal1', role: 'authenticated', client_id: codexClientId, scope: 'openid' })}, true)`;
+        await tx`delete from public.projects where id = ${codexProjectId}`;
+      }),
+    ).rejects.toThrow();
+
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local role authenticated');
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: codexOwnerId, aal: 'aal2', role: 'authenticated' })}, true)`;
+      const revoked = await tx`select public.revoke_codex_connections() as revoked`;
+      expect(revoked[0]?.['revoked']).toBe(1);
+    });
+
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local role authenticated');
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: codexOwnerId, aal: 'aal1', role: 'authenticated', client_id: codexClientId, scope: 'openid' })}, true)`;
+      const verified = await tx`select public.verify_codex_oauth_grant() as verified`;
+      expect(verified[0]?.['verified']).toBe(false);
+      const hidden = await tx`select id from public.projects where id = ${codexProjectId}`;
+      expect(hidden).toHaveLength(0);
     });
   });
 

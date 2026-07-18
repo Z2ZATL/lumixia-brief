@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   getAuthorizationDetails: vi.fn(),
   approveAuthorization: vi.fn(),
   denyAuthorization: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 const client = {
@@ -53,6 +54,7 @@ const client = {
       denyAuthorization: mocks.denyAuthorization,
     },
   },
+  rpc: mocks.rpc,
 } as unknown as SupabaseClient;
 
 vi.mock('../../src/auth/client', () => ({
@@ -94,6 +96,7 @@ describe('Supabase authentication UI', () => {
       error: null,
     });
     mocks.unenroll.mockResolvedValue({ data: {}, error: null });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
   });
 
   it('shows a Google-only sign-in gate when no session exists', async () => {
@@ -311,7 +314,16 @@ describe('Supabase authentication UI', () => {
     expect(screen.queryByText('private@example.com')).not.toBeInTheDocument();
     expect(window.location.search).toBe('');
     expect(mocks.getAuthorizationDetails).toHaveBeenCalledOnce();
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error('unavailable') });
     await userEvent.click(screen.getByRole('button', { name: /allow codex/i }));
+    expect(mocks.approveAuthorization).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be completed/i);
+
+    mocks.rpc.mockResolvedValueOnce({ data: true, error: null });
+    await userEvent.click(screen.getByRole('button', { name: /allow codex/i }));
+    expect(mocks.rpc).toHaveBeenCalledWith('authorize_codex_connection', {
+      p_client_id: '22222222-2222-4222-8222-222222222222',
+    });
     expect(mocks.approveAuthorization).toHaveBeenCalledWith(authorizationId, {
       skipBrowserRedirect: true,
     });
