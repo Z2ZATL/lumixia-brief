@@ -25,6 +25,16 @@ After verifying a second native TOTP factor, continue every safe non-model compl
 - `PRODUCTION_RELEASE_ENABLED` remains `false`. GitHub Required CI passed at merged `main` SHA `ea17c786921deb9d9ac7a373584072ebc38319b8`; the Production migration gate remains intentionally waiting and no deployment was promoted.
 - Removing environment variables affects only future deployments. No redeploy was triggered, so the running rollback-tested snapshot remains unchanged throughout the soak.
 
+## Read-only external decommission inventory
+
+The following inventory was captured during the soak without reading secrets or changing provider state:
+
+- The Supabase organization remains on the Free Plan. Lumixia Brief Production and Staging are active, and each project has exactly one Clerk Third-Party Auth provider with one removal control. No provider was removed.
+- The Clerk dashboard contains exactly one Lumixia Brief application. Both its Development and Production instances are present. No application or instance setting was changed.
+- The Google Cloud project session is signed in, but the credentials area requires owner identity or passkey reauthentication before the legacy OAuth clients can be distinguished and deleted safely. No credential was opened, disabled, or deleted.
+- The Cloudflare session is signed out. DNS inventory and deletion are therefore deferred until the owner signs in after the soak. No DNS record was read or changed.
+- These provider checks identify deletion cardinality but intentionally omit organization, project, application, instance, credential, account, and user identifiers from repository evidence.
+
 ## Post-soak decommission sequence
 
 The following actions are intentionally deferred until the conservative soak boundary has passed and health, AAL2, project ownership, Notion, Sentry, and uptime evidence remain green:
