@@ -8,8 +8,9 @@
 - Branch: `agent/clerk-decommission`
 - Preparation commit: `56db2ca`
 - Draft PR: [#31](https://github.com/Z2ZATL/lumixia-brief/pull/31)
-- Current implementation commit: `8dc5e7b`
-- CI: [Required CI passed](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29637565493)
+- Hosted residue implementation commit: `8dc5e7b`
+- External-decommission evidence commit: `5696dd5`
+- Current CI: [Required CI passed](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29638444036)
 
 ## Sanitized owner instruction
 
@@ -35,8 +36,9 @@ The following inventory and changes were captured without reading or recording s
 
 - The Supabase organization remains on the Free Plan. The legacy Clerk Third-Party Auth provider was removed from both Lumixia Brief Production and Staging, and its removal was verified in each dashboard.
 - The Clerk dashboard contains exactly one Lumixia Brief application with Development and Production instances. Self-service deletion is blocked by Clerk for active Production applications, so deletion has been escalated to Clerk support and is not yet claimed complete.
-- The Google Cloud credentials area requires owner passkey reauthentication before the legacy OAuth clients can be distinguished and deleted safely. No credential has been opened, disabled, or deleted yet.
+- After owner passkey reauthentication, the Google Cloud inventory showed four OAuth clients. Redirect inspection proved that the client created on July 15 was the legacy Clerk client and did not use a Supabase callback. That client was deleted. A fresh three-client inventory proved that the Supabase Production client, Supabase Non-Production client, and an unrelated earlier Lumixia client remained.
 - The Cloudflare DNS inventory identified two Clerk frontend/delegation records and three Clerk-branded mail/DKIM records. The frontend/delegation records were deleted and a fresh seven-record table proved them absent. Production and Preview application records, the root MX record, and all three mail/DKIM records were preserved exactly as required by the email-safety boundary.
+- Public DNS resolution then proved both deleted frontend names absent while the Production and Preview application names still resolved. Landing, health, and readiness remained `200`; a fresh native AAL2 Security reload and Notion connection check produced zero browser log entries.
 - These provider checks identify deletion cardinality but intentionally omit organization, project, application, instance, credential, account, and user identifiers from repository evidence.
 
 ## Hosted bundle residue regression
@@ -54,10 +56,9 @@ The following inventory and changes were captured without reading or recording s
 
 The owner authorized proceeding before the original soak boundary. The remaining steps preserve the same least-destructive scope:
 
-1. After owner passkey reauthentication, distinguish the legacy Clerk-only Google OAuth clients from the two active Supabase clients and delete only the legacy clients.
-2. Track the Clerk support deletion request to completion. Do not delete the Clerk workspace or unrelated applications.
-3. Merge the Supabase-auth-only residue gate, deploy from exact `main`, and repeat health/readiness, signed-out denial, AAL2, project ownership, Notion, hosted assets, sanitized logs, and browser-console checks.
-4. Replace the rollback target with the verified Supabase-auth-only deployment and close this ledger with commit, PR, CI, and post-deletion evidence.
+1. Track the Clerk support deletion request to completion. Do not delete the Clerk workspace or unrelated applications.
+2. Merge the Supabase-auth-only residue gate, deploy from exact `main`, and repeat health/readiness, signed-out denial, AAL2, project ownership, Notion, hosted assets, sanitized logs, and browser-console checks.
+3. Replace the rollback target with the verified Supabase-auth-only deployment and close this ledger with commit, PR, CI, and post-deletion evidence.
 
 ## Acceptance checklist
 
@@ -72,7 +73,7 @@ The owner authorized proceeding before the original soak boundary. The remaining
 - [x] Native-auth and Notion smoke passed after Supabase Clerk trust removal.
 - [x] Clerk Vercel variables and duplicate legacy Supabase variables are removed.
 - [x] Supabase Clerk third-party Auth trust is removed from staging and Production.
-- [ ] Clerk-only Google OAuth credentials are deleted.
+- [x] Clerk-only Google OAuth credentials are deleted without changing Supabase or unrelated clients.
 - [ ] Lumixia Brief Clerk application deletion is confirmed by Clerk support.
 - [x] Clerk frontend/delegation Cloudflare records are removed without touching mail or application DNS.
 - [ ] Supabase-auth-only redeploy and post-deletion clean gate have passed.
