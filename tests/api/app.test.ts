@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Project } from '../../shared/contracts.js';
+import { emptyBriefSections, type Project } from '../../shared/contracts.js';
+import { dimensionKeys } from '../../shared/domain.js';
 import { createApp as createRuntimeApp, type AppDependencies } from '../../server/app.js';
 import { loadConfig } from '../../server/config.js';
 import { MockModelProvider } from '../../server/providers/model.js';
@@ -13,7 +14,15 @@ const headers = userAHeaders;
 function createApp(dependencies: Omit<AppDependencies, 'identity'>) {
   return createRuntimeApp({
     ...dependencies,
-    config: { ...dependencies.config, AUTH_MODE: 'supabase', VITE_AUTH_MODE: 'supabase' },
+    config: {
+      ...dependencies.config,
+      AUTH_MODE: 'supabase',
+      VITE_AUTH_MODE: 'supabase',
+      VITE_SUPABASE_URL:
+        dependencies.config.VITE_SUPABASE_URL ?? 'https://test-project.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY:
+        dependencies.config.VITE_SUPABASE_PUBLISHABLE_KEY ?? 'test-publishable-key',
+    },
     identity: new TestIdentityVerifier(),
   });
 }
@@ -73,6 +82,158 @@ describe('Lumixia API', () => {
 
     await request(publicApp).get('/api/health').expect(200);
     await request(publicApp).get('/api/ready').expect(200);
+  });
+
+  it('publishes protected-resource metadata and challenges unauthenticated MCP clients', async () => {
+    const metadata = await request(app)
+      .get('/.well-known/oauth-protected-resource/api/mcp')
+      .expect(200);
+    expect(metadata.body).toMatchObject({
+      resource: 'http://localhost:5173/api/mcp',
+      authorization_servers: ['https://test-project.supabase.co/auth/v1'],
+      scopes_supported: ['openid'],
+    });
+    const denied = await request(app).post('/api/mcp').send(mcpInitialize()).expect(401);
+    expect(denied.headers['www-authenticate']).toContain(
+      '/.well-known/oauth-protected-resource/api/mcp',
+    );
+  });
+
+  it('initializes the Codex MCP server, advertises safe tools, and creates idempotently', async () => {
+    const initialized = await mcpRequest(app, mcpInitialize()).expect(200);
+    expect(initialized.body.result).toMatchObject({
+      protocolVersion: '2025-11-25',
+      serverInfo: { name: 'lumixia-brief', version: '0.1.0' },
+    });
+    const listed = await mcpRequest(app, {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/list',
+      params: {},
+    }).expect(200);
+    expect(listed.body.result.tools.map((tool: { name: string }) => tool.name)).toEqual([
+      'list_projects',
+      'get_project_context',
+      'create_project',
+      'record_interview_turn',
+      'save_brief_draft',
+    ]);
+    expect(listed.body.result.tools[0]).toMatchObject({
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+      _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['openid'] }] },
+    });
+    const projectId = crypto.randomUUID();
+    const toolArguments = {
+      clientProjectId: projectId,
+      title: 'Codex-connected brief',
+      initialPrompt: 'Create a reviewable project brief without an OpenAI API call.',
+      locale: 'en',
+    };
+    const first = await callMcpTool(app, 'create_project', toolArguments, 3).expect(200);
+    const second = await callMcpTool(app, 'create_project', toolArguments, 4).expect(200);
+    expect(first.body.result.structuredContent.result).toMatchObject({
+      project: { id: projectId },
+      idempotent: false,
+    });
+    expect(second.body.result.structuredContent.result).toMatchObject({
+      project: { id: projectId },
+      idempotent: true,
+    });
+    expectSanitizedProject(first.body.result.structuredContent.result.project);
+    expectSanitizedProject(second.body.result.structuredContent.result.project);
+  });
+
+  it('lets Codex interview and draft while server rules retain the human approval boundary', async () => {
+    const projectId = crypto.randomUUID();
+    await callMcpTool(
+      app,
+      'create_project',
+      {
+        clientProjectId: projectId,
+        title: 'Server-governed Codex brief',
+        initialPrompt: 'Prepare a clear implementation brief through an adaptive interview.',
+        locale: 'en',
+      },
+      10,
+    ).expect(200);
+    let project: Project | undefined;
+    let finalTurn:
+      | { clientAnswerId: string; answer: string; analysis: ReturnType<typeof codexAnalysis> }
+      | undefined;
+    for (let index = 0; index < 5; index += 1) {
+      const clientAnswerId = crypto.randomUUID();
+      const answer = `Validated answer ${index + 1} with a concrete boundary and observable result.`;
+      const analysis = codexAnalysis(clientAnswerId);
+      const response = await callMcpTool(
+        app,
+        'record_interview_turn',
+        {
+          projectId,
+          clientAnswerId,
+          answer,
+          analysis,
+        },
+        20 + index,
+      ).expect(200);
+      project = response.body.result.structuredContent.result.project as Project;
+      expectSanitizedProject(project);
+      finalTurn = { clientAnswerId, answer, analysis };
+    }
+    expect(project).toMatchObject({ workflowStatus: 'interviewing' });
+    expect(project?.analysis).toMatchObject({ shouldStop: true, stopReason: 'ready' });
+    const repeatedFinalTurn = await callMcpTool(
+      app,
+      'record_interview_turn',
+      { projectId, ...finalTurn! },
+      29,
+    ).expect(200);
+    const repeatedResult = repeatedFinalTurn.body.result.structuredContent.result;
+    expect(repeatedResult).toMatchObject({ idempotent: true });
+    expect(repeatedResult.project.answers).toHaveLength(5);
+    const generated = {
+      title: 'Server-governed Codex brief',
+      sections: {
+        ...emptyBriefSections,
+        summary: 'A human-reviewed implementation brief prepared through Codex.',
+        goals: ['Create one decision-ready implementation brief.'],
+      },
+    };
+    const first = await callMcpTool(
+      app,
+      'save_brief_draft',
+      { projectId, brief: generated },
+      30,
+    ).expect(200);
+    const duplicate = await callMcpTool(
+      app,
+      'save_brief_draft',
+      { projectId, brief: generated },
+      31,
+    ).expect(200);
+    const conflict = await callMcpTool(
+      app,
+      'save_brief_draft',
+      { projectId, brief: { ...generated, title: 'Conflicting draft' } },
+      32,
+    ).expect(200);
+    expect(first.body.result.structuredContent.result).toMatchObject({
+      brief: { status: 'draft', version: 1 },
+      project: { workflowStatus: 'needs_review' },
+      idempotent: false,
+    });
+    expect(duplicate.body.result.structuredContent.result.idempotent).toBe(true);
+    expectSanitizedProject(first.body.result.structuredContent.result.project);
+    expect(first.body.result.structuredContent.result.brief).not.toHaveProperty('approvedBy');
+    expectSanitizedProject(duplicate.body.result.structuredContent.result.project);
+    expect(duplicate.body.result.structuredContent.result.brief).not.toHaveProperty('approvedBy');
+    expect(conflict.body.result).toMatchObject({ isError: true });
+    expect(conflict.body.result.content[0].text).toContain('IDEMPOTENCY_CONFLICT');
+    const context = await callMcpTool(app, 'get_project_context', { projectId }, 33).expect(200);
+    expect(context.body.result.structuredContent.result).not.toHaveProperty('ownerId');
+    expect(context.body.result.structuredContent.result).not.toHaveProperty('notionPageId');
+    expect(context.body.result.structuredContent.result.briefVersions[0]).not.toHaveProperty(
+      'approvedBy',
+    );
   });
 
   it('rejects signed-out requests before protected handlers run', async () => {
@@ -434,6 +595,13 @@ describe('Lumixia API', () => {
   });
 });
 
+function expectSanitizedProject(project: unknown): void {
+  expect(project).not.toHaveProperty('ownerId');
+  expect(project).not.toHaveProperty('notionParentId');
+  expect(project).not.toHaveProperty('notionPageId');
+  expect(project).not.toHaveProperty('lastSyncError');
+}
+
 async function createProject(app: ReturnType<typeof createApp>): Promise<Project> {
   const response = await request(app)
     .post('/api/projects')
@@ -445,4 +613,66 @@ async function createProject(app: ReturnType<typeof createApp>): Promise<Project
     })
     .expect(201);
   return response.body.project as Project;
+}
+
+function mcpInitialize() {
+  return {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'lumixia-test', version: '1.0.0' },
+    },
+  };
+}
+
+function mcpRequest(app: ReturnType<typeof createApp>, body: object) {
+  return request(app)
+    .post('/api/mcp')
+    .set(headers)
+    .set('accept', 'application/json, text/event-stream')
+    .set('mcp-protocol-version', '2025-11-25')
+    .send(body);
+}
+
+function callMcpTool(
+  app: ReturnType<typeof createApp>,
+  name: string,
+  toolArguments: object,
+  id: number,
+) {
+  return mcpRequest(app, {
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name, arguments: toolArguments },
+  });
+}
+
+function codexAnalysis(answerId: string) {
+  return {
+    facts: [
+      {
+        statement: 'The latest answer is treated as user-provided evidence.',
+        answerIds: [answerId],
+      },
+    ],
+    assumptions: [],
+    contradictions: [],
+    dimensionAssessments: dimensionKeys.map((dimension) => ({
+      dimension,
+      level: 'clear',
+      rationale: 'The available answers establish this dimension for the synthetic test.',
+      evidence: [],
+    })),
+    nextQuestion: {
+      text: 'What important detail should be clarified next?',
+      dimension: 'risks',
+      rationale: 'Continue until the server-enforced answer threshold is reached.',
+    },
+    shouldStop: false,
+    stopReason: 'continue',
+  };
 }

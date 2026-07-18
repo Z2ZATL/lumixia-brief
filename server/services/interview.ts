@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { submitAnswerInputSchema, type Project } from '../../shared/contracts.js';
+import {
+  submitAnswerInputSchema,
+  type InterviewAnalysis,
+  type Project,
+} from '../../shared/contracts.js';
+import { dimensionKeys } from '../../shared/domain.js';
 import { enforceStopRules, initialQuestion } from '../domain/interview.js';
 import { HttpError } from '../http.js';
 import type { ModelProvider } from '../providers/model.js';
@@ -10,6 +15,11 @@ import { getOwnedProject, modelHttpError, touch } from './support.js';
 
 type SubmitAnswerInput = z.infer<typeof submitAnswerInputSchema>;
 type AnswerRecord = Project['answers'][number];
+interface CodexTurnInput {
+  clientAnswerId: string;
+  answer: string;
+  analysis: InterviewAnalysis;
+}
 
 export interface InterviewServiceResult {
   httpStatus: 200 | 202;
@@ -88,6 +98,84 @@ export class InterviewService {
     return this.analyze(identity, project, answer, 'The answer remains saved and can be retried.');
   }
 
+  async submitFromCodex(identity: RequestIdentity, projectId: string, input: CodexTurnInput) {
+    const project = await getOwnedProject(this.store, identity, projectId);
+    const existingAnswer = project.answers.find(
+      (answer) => answer.clientAnswerId === input.clientAnswerId,
+    );
+    if (existingAnswer) {
+      this.assertAnalysis(input.analysis, project, input.clientAnswerId);
+      const existingInput: SubmitAnswerInput = {
+        clientAnswerId: input.clientAnswerId,
+        question: existingAnswer.question,
+        dimension: existingAnswer.dimension,
+        answer: input.answer,
+      };
+      const claim = await this.claimCodexTurn(identity, project, existingInput, input.analysis);
+      const duplicate = await this.resolveClaim(identity, project, input.clientAnswerId, claim);
+      if (duplicate) return duplicate;
+      return this.finishCodexTurn(identity, project, existingAnswer, input.analysis, true);
+    }
+    this.assertCanAnswer(project);
+    const question = project.currentQuestion;
+    if (!question) throw new HttpError(409, 'INTERVIEW_COMPLETE', 'No interview question remains.');
+    const answerInput: SubmitAnswerInput = {
+      clientAnswerId: input.clientAnswerId,
+      question: question.text,
+      dimension: question.dimension,
+      answer: input.answer,
+    };
+    this.assertAnalysis(input.analysis, project, input.clientAnswerId);
+    const claim = await this.claimCodexTurn(identity, project, answerInput, input.analysis);
+    const duplicate = await this.resolveClaim(identity, project, input.clientAnswerId, claim);
+    if (duplicate) return duplicate;
+    const answer = this.createAnswer(answerInput, input.clientAnswerId);
+    project.answers.push(answer);
+    project.workflowStatus = 'interviewing';
+    return this.finishCodexTurn(identity, project, answer, input.analysis, false);
+  }
+
+  private claimCodexTurn(
+    identity: RequestIdentity,
+    project: Project,
+    input: SubmitAnswerInput,
+    analysis: InterviewAnalysis,
+  ) {
+    return this.store.claimInterviewTurn(
+      identity.ownerId,
+      project.id,
+      input.clientAnswerId,
+      { ...input, source: 'codex', analysis },
+      false,
+      identity.token,
+      identity.signal,
+    );
+  }
+
+  private async finishCodexTurn(
+    identity: RequestIdentity,
+    project: Project,
+    answer: AnswerRecord,
+    analysis: InterviewAnalysis,
+    idempotent: boolean,
+  ): Promise<InterviewServiceResult> {
+    project.analysis = enforceStopRules(analysis, project.answers.length);
+    project.currentQuestion = project.analysis.nextQuestion;
+    answer.status = 'processed';
+    answer.errorCode = null;
+    answer.processedAt ??= new Date().toISOString();
+    touch(project);
+    const saved = await this.store.saveProject(project, identity.token, identity.signal);
+    await this.complete(identity, saved, answer, 'processed', null);
+    return {
+      httpStatus: 200,
+      project: saved,
+      answer,
+      status: 'processed',
+      idempotent,
+    };
+  }
+
   private assertCanAnswer(project: Project) {
     if (project.answers.length >= 12) {
       throw new HttpError(409, 'QUESTION_LIMIT', 'The 12-question limit has been reached.');
@@ -146,9 +234,9 @@ export class InterviewService {
     };
   }
 
-  private createAnswer(input: SubmitAnswerInput): AnswerRecord {
+  private createAnswer(input: SubmitAnswerInput, id: string = randomUUID()): AnswerRecord {
     return {
-      id: randomUUID(),
+      id,
       clientAnswerId: input.clientAnswerId,
       question: input.question,
       dimension: input.dimension,
@@ -158,6 +246,29 @@ export class InterviewService {
       createdAt: new Date().toISOString(),
       processedAt: null,
     };
+  }
+
+  private assertAnalysis(
+    analysis: InterviewAnalysis,
+    project: Project,
+    currentAnswerId: string,
+  ): void {
+    const dimensions = new Set(analysis.dimensionAssessments.map((item) => item.dimension));
+    if (dimensions.size !== dimensionKeys.length) throw invalidCodexAnalysis();
+    const allowed = new Set<string>([
+      'initial-prompt',
+      currentAnswerId,
+      ...project.answers.map((answer) => answer.id),
+    ]);
+    const referenced = [
+      ...analysis.facts.flatMap((item) => item.answerIds),
+      ...analysis.assumptions.flatMap((item) => item.answerIds),
+      ...analysis.contradictions.flatMap((item) => item.answerIds),
+      ...analysis.dimensionAssessments.flatMap((item) =>
+        item.evidence.map((evidence) => evidence.answerId),
+      ),
+    ];
+    if (referenced.some((answerId) => !allowed.has(answerId))) throw invalidCodexAnalysis();
   }
 
   private async analyze(
@@ -221,4 +332,12 @@ export class InterviewService {
       identity.signal,
     );
   }
+}
+
+function invalidCodexAnalysis() {
+  return new HttpError(
+    400,
+    'MCP_INVALID_ANALYSIS',
+    'The interview analysis contains invalid dimensions or evidence references.',
+  );
 }

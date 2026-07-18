@@ -11,6 +11,7 @@ import {
   requireIdentity,
 } from './http.js';
 import { initializeSentry, mountSentryErrors } from './observability/sentry.js';
+import { createMcpMetadataRouter, createMcpRouter } from './mcp/router.js';
 import {
   DisabledModelProvider,
   MockModelProvider,
@@ -80,6 +81,8 @@ export function createApp(dependencies = createDependencies()) {
 
   // Liveness and readiness must remain public and independent from identity providers.
   app.use('/api', createHealthRouter(config));
+  if (config.codexAvailable) app.use(createMcpMetadataRouter(config));
+  app.use('/api', createMcpRouter(config, store, model, identity));
 
   const protectedApi = express.Router();
   protectedApi.use(requireIdentity(config, identity), perUserRateLimit(config));

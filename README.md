@@ -24,8 +24,10 @@ Lumixia Brief is a React web app that turns an unclear project idea into a revie
 ```mermaid
 flowchart LR
   U["Founder / PM / Agency"] --> C["Supabase Auth\nGoogle OAuth + TOTP"]
+  X["Codex desktop / CLI\nowner-operated model"] --> C
   C --> V["Vite React on Vercel CDN"]
   V --> E["Express /api function"]
+  C --> E
   E --> O["OpenAI Responses API\nGPT-5.6, store:false"]
   E --> S["Supabase Postgres\nNative JWT + owner/AAL2 RLS"]
   E --> N["Notion Public OAuth\nAES-256-GCM tokens"]
@@ -36,6 +38,7 @@ flowchart LR
 - `api/index.ts` — Vercel Express entrypoint.
 - `server/domain/` — deterministic confidence, question priority, stop rules, and workflow invariants.
 - `server/providers/` — live/mock OpenAI and Notion adapters.
+- `server/mcp/` — authenticated Streamable HTTP tools for an owner-operated Codex session.
 - `server/store/` — in-memory test adapter and Supabase adapter using the verified Supabase JWT.
 - `shared/contracts.ts` — strict Zod contracts shared by client and server.
 - `supabase/migrations/` — forward-only schema and forced RLS policies.
@@ -80,6 +83,7 @@ Then set `AUTH_MODE=supabase`, `VITE_AUTH_MODE=supabase`, and `DATA_MODE=supabas
 | `VITE_SUPABASE_PUBLISHABLE_KEY`            | empty          | Public API key; protected requests also carry the active JWT   |
 | `OPENAI_API_KEY`                           | empty          | Required only when `MODEL_PROVIDER_MODE=live`                  |
 | `OPENAI_MODEL`                             | `gpt-5.6`      | Interview and brief model                                      |
+| `CODEX_MCP_MODE`                           | `enabled`      | Enables the authenticated owner-operated Codex MCP endpoint    |
 | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | empty          | Notion public integration credentials                          |
 | `NOTION_REDIRECT_URI`                      | local callback | Exact OAuth callback registered in Notion                      |
 | `TOKEN_ENCRYPTION_KEY`                     | empty          | Base64-encoded 32-byte AES-256-GCM key                         |
@@ -89,6 +93,31 @@ Then set `AUTH_MODE=supabase`, `VITE_AUTH_MODE=supabase`, and `DATA_MODE=supabas
 Production startup rejects a mock model, mock Notion, memory data, auth bypass, or missing security/provider credentials. Until the paid model smoke test is authorized, production uses `MODEL_PROVIDER_MODE=disabled`; interview and generation return the explicit `503 MODEL_NOT_CONFIGURED` response without constructing an OpenAI client. Preview uses a deterministic model mock with live Notion and staging Supabase. The protected `GET /api/capabilities` endpoint reports the active model and Notion modes to the signed-in client.
 
 Vercel Preview derives its exact origin from the stable `VERCEL_BRANCH_URL` system variable (falling back to `VERCEL_URL`), while Production requires an explicit `APP_URL`. This keeps CORS and OAuth callbacks aligned across new commits without hard-coding a changing deployment URL.
+
+## Codex connection without an OpenAI API key
+
+Lumixia Brief also exposes an owner-operated MCP connection at `https://brief.z2zs.space/api/mcp`. It lets the signed-in owner use their own Codex session to conduct the adaptive interview and draft the brief. This path does not instantiate the OpenAI API client, does not use `OPENAI_API_KEY`, and does not create OpenAI API charges for Lumixia Brief. The owner's Codex plan limits still apply.
+
+The connection uses Supabase OAuth 2.1 consent, Google sign-in, verified TOTP/AAL2, owner RLS, and per-write approval in Codex. A normal browser access token is rejected because MCP access must also include an OAuth client identifier. The server exposes five narrow tools:
+
+- `list_projects`
+- `get_project_context`
+- `create_project`
+- `record_interview_turn`
+- `save_brief_draft`
+
+Codex supplies structured analysis, but the Lumixia server validates evidence, computes confidence, enforces stop rules, and owns workflow/version transitions. Approval and Notion sync remain human-only actions in the web app.
+
+In Codex desktop, open **Settings → MCP servers → Add server**, choose Streamable HTTP, enter the endpoint above, save, and restart Codex. The equivalent Codex configuration is:
+
+```toml
+[mcp_servers.lumixia_brief]
+url = "https://brief.z2zs.space/api/mcp"
+auth = "oauth"
+default_tools_approval_mode = "writes"
+```
+
+Then run `codex mcp login lumixia_brief` if the command-line client has not opened the consent flow automatically. Hosted setup requires Supabase OAuth Server, Dynamic Client Registration, the `/oauth/consent` authorization path, and asymmetric signing to be enabled. See [the Codex MCP runbook](docs/operations/codex-mcp.md).
 
 ## Interview and model contract
 
@@ -142,6 +171,7 @@ Notion uses per-user public OAuth. Access and refresh tokens are encrypted at re
 - Logs contain only request ID, route, method, status, duration, anonymous user hash, and deployment SHA.
 - Request bodies, authorization/cookie headers, answers, briefs, emails, OpenAI/Notion payloads, and user identifiers are removed from Sentry. Session Replay is disabled.
 - Secrets belong only in `.env.local`, GitHub encrypted secrets, or Vercel encrypted variables. `.env.example` contains names only.
+- Codex MCP access is owner-scoped and stateless. Tool responses omit owner IDs and Notion identifiers, and prompts, answers, briefs, OAuth tokens, and TOTP values remain excluded from logs and Build Ledger evidence.
 
 See [docs/security/privacy-model.md](docs/security/privacy-model.md) for the threat boundaries and operator checklist.
 
@@ -209,6 +239,7 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 - Confidence measures interview completeness, not factual truth or model accuracy.
 - Google-only login depends on completing the documented Google and Supabase Auth provider configuration.
 - Local mock mode is deterministic evidence for development, not a substitute for the live provider smoke tests.
+- The Codex MCP path is an interactive, owner-operated alternative. It is not a background Responses API provider and does not make the web app autonomous.
 - Vercel Hobby is appropriate only for this personal, non-commercial prototype; review the plan before commercial launch.
 
 ## Troubleshooting
@@ -218,6 +249,7 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 - **RLS returns no project:** confirm the verified Supabase token `sub` matches `owner_id` and contains `aal=aal2`.
 - **Answer shows failed:** the answer is already saved. Use Retry; do not submit a new client answer ID.
 - **Interview returns `MODEL_NOT_CONFIGURED`:** this is the intended disabled-production state before the paid live smoke test; no OpenAI request was sent.
+- **Codex cannot discover OAuth:** verify `/.well-known/oauth-protected-resource/api/mcp`, Supabase OAuth Server/Dynamic Client Registration, the exact `/oauth/consent` authorization path, and asymmetric JWT signing.
 - **Notion shows 401:** reconnect only if automatic refresh reports `NOTION_RECONNECT_REQUIRED`.
 - **OneDrive dev is slow:** keep daily Node development native; use Docker only for Supabase and portability gates.
 

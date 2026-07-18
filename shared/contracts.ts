@@ -182,6 +182,10 @@ export const capabilityStatusSchema = z.object({
     mode: z.enum(['live', 'mock']),
     available: z.boolean(),
   }),
+  codex: z.object({
+    mode: z.enum(['disabled', 'enabled']),
+    available: z.boolean(),
+  }),
 });
 
 export type CapabilityStatus = z.infer<typeof capabilityStatusSchema>;
@@ -191,6 +195,26 @@ export const createProjectInputSchema = z
     title: z.string().trim().min(2).max(120),
     initialPrompt: z.string().trim().min(10).max(10_000),
     locale: z.enum(['en', 'th']).default('en'),
+  })
+  .strict();
+
+export const codexCreateProjectInputSchema = createProjectInputSchema.extend({
+  clientProjectId: z.string().uuid(),
+});
+
+export const codexInterviewTurnInputSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    clientAnswerId: z.string().uuid(),
+    answer: z.string().trim().min(1).max(10_000),
+    analysis: interviewAnalysisSchema,
+  })
+  .strict();
+
+export const codexBriefDraftInputSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    brief: generatedBriefSchema,
   })
   .strict();
 

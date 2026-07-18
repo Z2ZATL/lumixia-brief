@@ -55,6 +55,7 @@
     "quality": "npm run quality:static && npm run test:coverage && npm run test:ui && npm run build && npm run bundle:check && npm run audit:all && npm run audit:prod"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
     "@sentry/node": "10.65.0",
     "@sentry/react": "10.65.0",
     "@supabase/supabase-js": "2.110.5",

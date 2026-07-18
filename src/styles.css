@@ -244,6 +244,47 @@ button:disabled {
   padding: 30px;
   text-align: center;
 }
+.codex-consent {
+  margin-top: 7vh;
+}
+.codex-consent .spinner {
+  margin: 30px auto 0;
+}
+.consent-details {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0 20px;
+}
+.consent-details > div {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.5);
+}
+.consent-details dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.consent-details dd {
+  margin: 6px 0 0;
+  font-weight: 700;
+}
+.consent-details code {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.consent-note {
+  font-size: 13px;
+}
+.consent-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 25px;
+}
 
 /* Landing */
 .landing {
@@ -1528,6 +1569,29 @@ form label + label {
   font-family: Georgia, serif;
   font-size: 32px;
   font-weight: 700;
+}
+.codex-card {
+  margin-top: 16px;
+}
+.codex-logo {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--forest);
+  font-family: Georgia, serif;
+  font-size: 28px;
+}
+.codex-card code {
+  display: inline-block;
+  max-width: 100%;
+  padding: 7px 9px;
+  overflow-wrap: anywhere;
+  border-radius: 3px;
+  background: #eee8df;
+  font-size: 12px;
 }
 .connection-card h2 {
   margin: 0;

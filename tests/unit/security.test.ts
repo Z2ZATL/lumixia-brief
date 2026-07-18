@@ -71,12 +71,25 @@ describe('security primitives', () => {
       403,
       'MFA_REQUIRED',
     );
+    mocks.getClaims.mockResolvedValueOnce({
+      data: {
+        claims: { ...claims, client_id: 'codex-client_opaque.1' },
+      },
+      error: null,
+    });
+    await expect(verifier.verify('oauth-token', new AbortController().signal)).resolves.toEqual({
+      userId: claims.sub,
+      accessToken: 'oauth-token',
+      aal: 'aal2',
+      clientId: 'codex-client_opaque.1',
+    });
   });
 
-  it('rejects wrong issuer, role, subject, and expired sessions', async () => {
+  it('rejects wrong issuer, audience, role, subject, and expired sessions', async () => {
     const verifier = new SupabaseIdentityVerifier('https://example.supabase.co', 'publishable-key');
     for (const invalid of [
       { ...claims, iss: 'https://evil.example/auth/v1' },
+      { ...claims, aud: 'another-service' },
       { ...claims, role: 'anon' },
       { ...claims, sub: 'not-a-uuid' },
     ]) {
