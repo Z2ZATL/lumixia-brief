@@ -25,7 +25,7 @@ Never point preview at production Supabase or reuse production token-encryption 
 4. Install Vercel Git integration and configure production Deployment Checks requiring **Required CI** and **Production migration gate**.
 5. Add separate preview/production environment variables in Vercel.
 6. Add only migration credentials to the GitHub `production` environment: `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF`. The CLI exchanges the access token for its temporary database login, so a long-lived database password is not stored in GitHub. Vercel deployment credentials are intentionally absent because Vercel Git is the sole deployment path.
-7. Set `PRODUCTION_RELEASE_ENABLED=true` only after a preview smoke test and rollback rehearsal.
+7. Every `main` push waits on the protected `production` environment even while `PRODUCTION_RELEASE_ENABLED=false`; leave the approval pending during a release freeze. Set the variable to `true` only after the preview smoke test, rollback rehearsal, and soak gates pass, then approve the exact SHA.
 
 ## Release
 
