@@ -8,8 +8,11 @@ const excludedPaths = [
   'supabase/migrations/202607140001_initial.sql',
   'supabase/migrations/202607150001_quality_hardening.sql',
   'scripts/check-auth-residue.mjs',
+  'scripts/auth-residue-policy.mjs',
   'scripts/check-bundle.mjs',
+  'scripts/check-hosted-auth-residue.mjs',
   'tests/unit/bundle-policy.test.ts',
+  'tests/unit/hosted-deployment-policy.test.ts',
 ];
 const forbidden = [
   /@clerk\//i,
