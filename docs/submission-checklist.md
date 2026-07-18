@@ -9,7 +9,7 @@
 - [x] Build Ledger and ADR structure
 - [ ] Live GPT-5.6 contract smoke test with synthetic data
 - [x] Disabled-model behavior, fake Responses-client contract, retry, refusal, schema, and no-network regression tests
-- [ ] Real Google/TOTP + backup-factor smoke test
+- [x] Real Google/TOTP + backup-factor smoke test
 - [x] Real Notion OAuth/refresh/idempotent-sync smoke test
 - [x] Seeded founder example in production
 - [ ] Demo path timed below 3:00
