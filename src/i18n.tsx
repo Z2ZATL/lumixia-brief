@@ -225,6 +225,22 @@ const messages = {
     notionConnectedReturn: 'Notion is connected. This tab will close automatically.',
     notionCancelledReturn: 'Notion connection was cancelled. This tab will close automatically.',
     closeThisTab: 'Close this tab',
+    codexConnection: 'CODEX CONNECTION',
+    codexConsentTitle: 'Let Codex work with your briefs?',
+    codexConsentBody:
+      'This connection lets Codex run the guided interview and prepare a structured draft inside your private workspace.',
+    codexClient: 'Connecting client',
+    codexPermissions: 'Requested permission',
+    codexRedirectTarget: 'Return destination',
+    codexConsentBoundary:
+      'Codex cannot approve a brief or sync it to Notion. Those actions still require you in Lumixia Brief.',
+    deny: 'Deny',
+    allowCodex: 'Allow Codex',
+    codexConsentInvalid: 'This Codex authorization request is invalid or has expired.',
+    codexConsentFailed: 'The Codex connection could not be completed. Try connecting again.',
+    codexSettingsBody:
+      'Add this Streamable HTTP endpoint in Codex Settings, then authenticate with Google and TOTP. Codex can interview and draft; approval stays here.',
+    noApiCharge: 'No OpenAI API charge',
   },
   th: {
     projects: 'โปรเจกต์',
@@ -448,6 +464,22 @@ const messages = {
     notionConnectedReturn: 'เชื่อมต่อ Notion แล้ว แท็บนี้จะปิดอัตโนมัติ',
     notionCancelledReturn: 'ยกเลิกการเชื่อมต่อ Notion แล้ว แท็บนี้จะปิดอัตโนมัติ',
     closeThisTab: 'ปิดแท็บนี้',
+    codexConnection: 'การเชื่อมต่อ CODEX',
+    codexConsentTitle: 'อนุญาตให้ Codex ทำงานกับบรีฟของคุณหรือไม่?',
+    codexConsentBody:
+      'การเชื่อมต่อนี้ช่วยให้ Codex ดำเนินการสัมภาษณ์และจัดทำร่างบรีฟแบบมีโครงสร้างในพื้นที่ส่วนตัวของคุณ',
+    codexClient: 'ไคลเอนต์ที่กำลังเชื่อมต่อ',
+    codexPermissions: 'สิทธิ์ที่ขอ',
+    codexRedirectTarget: 'ปลายทางหลังยืนยัน',
+    codexConsentBoundary:
+      'Codex ไม่สามารถอนุมัติบรีฟหรือซิงก์เข้า Notion ได้ ขั้นตอนเหล่านี้ยังต้องให้คุณยืนยันใน Lumixia Brief',
+    deny: 'ปฏิเสธ',
+    allowCodex: 'อนุญาต Codex',
+    codexConsentInvalid: 'คำขออนุญาต Codex นี้ไม่ถูกต้องหรือหมดอายุแล้ว',
+    codexConsentFailed: 'เชื่อมต่อ Codex ไม่สำเร็จ กรุณาลองเชื่อมต่อใหม่',
+    codexSettingsBody:
+      'เพิ่มปลายทาง Streamable HTTP นี้ใน Codex Settings แล้วเข้าสู่ระบบด้วย Google และ TOTP โดย Codex สัมภาษณ์และสร้างร่างได้ แต่การอนุมัติยังอยู่ที่นี่',
+    noApiCharge: 'ไม่เสียค่า OpenAI API',
   },
 } as const;
 

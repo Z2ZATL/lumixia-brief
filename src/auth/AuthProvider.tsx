@@ -128,7 +128,7 @@ async function signIn(setBusy: (busy: boolean) => void, setError: (error: string
   setBusy(true);
   setError('');
   try {
-    rememberReturnPath(window.location.pathname);
+    rememberReturnPath(`${window.location.pathname}${window.location.search}`);
     const redirectTo = `${window.location.origin}/auth/callback`;
     const { error } = await getSupabaseBrowserClient().auth.signInWithOAuth({
       provider: 'google',

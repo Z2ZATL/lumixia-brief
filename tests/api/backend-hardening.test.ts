@@ -52,6 +52,7 @@ describe('backend hardening', () => {
       .expect(200, {
         model: { mode: 'disabled', available: false },
         notion: { mode: 'mock', available: true },
+        codex: { mode: 'enabled', available: true },
       });
   });
 

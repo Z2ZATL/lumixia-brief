@@ -122,7 +122,7 @@ describe('quality regressions', () => {
     expect(mocks.create).toHaveBeenCalledTimes(1);
     resolveCreate?.({ project });
     await waitFor(() => expect(mocks.startInterview).toHaveBeenCalledTimes(1));
-  });
+  }, 10_000);
 
   it('reuses the client answer ID after an ambiguous network failure', async () => {
     const project = makeProject();

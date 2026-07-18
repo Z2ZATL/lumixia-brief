@@ -9,6 +9,7 @@ import { Settings } from './pages/Settings';
 import { Security } from './pages/Security';
 import { AuthCallback } from './pages/AuthCallback';
 import { NotionCallback } from './pages/NotionCallback';
+import { OAuthConsent } from './pages/OAuthConsent';
 
 export function App() {
   return (
@@ -16,6 +17,14 @@ export function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/notion/callback" element={<NotionCallback />} />
+      <Route
+        path="/oauth/consent"
+        element={
+          <AuthBoundary>
+            <OAuthConsent />
+          </AuthBoundary>
+        }
+      />
       <Route
         element={
           <AuthBoundary>

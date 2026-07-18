@@ -49,7 +49,7 @@ async function refreshSession(): Promise<string> {
 }
 
 export async function expireBrowserSession(): Promise<void> {
-  rememberReturnPath(window.location.pathname);
+  rememberReturnPath(`${window.location.pathname}${window.location.search}`);
   try {
     await getSupabaseBrowserClient().auth.signOut({ scope: 'local' });
   } catch {
@@ -76,5 +76,21 @@ export function consumeReturnPath(): string {
 }
 
 function safeReturnPath(path: string): string {
-  return /^\/(projects(?:\/.*)?|settings|security)$/.test(path) ? path : '/projects';
+  if (/^\/(projects(?:\/.*)?|settings|security)$/.test(path)) return path;
+  try {
+    const url = new URL(path, 'https://lumixia.invalid');
+    const authorizationId = url.searchParams.get('authorization_id');
+    const exactQuery = url.searchParams.size === 1;
+    if (
+      url.pathname === '/oauth/consent' &&
+      exactQuery &&
+      authorizationId &&
+      /^[a-zA-Z0-9_-]{8,200}$/.test(authorizationId)
+    ) {
+      return `${url.pathname}?authorization_id=${encodeURIComponent(authorizationId)}`;
+    }
+  } catch {
+    return '/projects';
+  }
+  return '/projects';
 }

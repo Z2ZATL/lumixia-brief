@@ -19,7 +19,12 @@ export class TestIdentityVerifier implements IdentityVerifier {
     }
     const userId = owners[bearerToken];
     if (!userId) throw new HttpError(401, 'AUTH_TOKEN_INVALID', 'Invalid authentication token.');
-    return { userId, accessToken: bearerToken, aal: 'aal2' };
+    return {
+      userId,
+      accessToken: bearerToken,
+      aal: 'aal2',
+      clientId: '22222222-2222-4222-8222-222222222222',
+    };
   }
 }
 

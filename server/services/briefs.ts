@@ -5,6 +5,7 @@ import {
   editBriefInputSchema,
   requestChangesInputSchema,
   type BriefVersion,
+  type GeneratedBrief,
 } from '../../shared/contracts.js';
 import { confidenceScore, isReadyToBrief } from '../domain/confidence.js';
 import { assertCanApprove, assertCanGenerate } from '../domain/workflow.js';
@@ -44,6 +45,32 @@ export class BriefService {
       generated = await this.model.generateBrief(project, identity.signal);
     } catch (error) {
       throw modelHttpError(error);
+    }
+    const brief = this.createBrief(project, generated, latest);
+    project.briefVersions.push(briefVersionSchema.parse(brief));
+    project.workflowStatus = 'needs_review';
+    touch(project);
+    const saved = await this.store.saveProject(project, identity.token, identity.signal);
+    return { httpStatus: 201 as const, project: saved, brief, idempotent: false };
+  }
+
+  async generateFromCodex(identity: RequestIdentity, projectId: string, generated: GeneratedBrief) {
+    const project = await getOwnedProject(this.store, identity, projectId);
+    try {
+      assertCanGenerate(project);
+    } catch (error) {
+      throw workflowHttpError(error);
+    }
+    const latest = project.briefVersions.at(-1);
+    if (latest?.status === 'draft') {
+      if (latest.title !== generated.title || !sameSections(latest.sections, generated.sections)) {
+        throw new HttpError(
+          409,
+          'IDEMPOTENCY_CONFLICT',
+          'A different brief draft already exists and must be reviewed or revised first.',
+        );
+      }
+      return { httpStatus: 200 as const, project, brief: latest, idempotent: true };
     }
     const brief = this.createBrief(project, generated, latest);
     project.briefVersions.push(briefVersionSchema.parse(brief));
@@ -181,4 +208,8 @@ export class BriefService {
       ? `ต้องแก้ส่วน ${input.section}: ${input.reason} กรุณาระบุข้อมูลที่ถูกต้องเพื่อใช้แทนที่`
       : `For ${input.section}, you requested: “${input.reason}”. What should the brief use instead?`;
   }
+}
+
+function sameSections(left: BriefVersion['sections'], right: BriefVersion['sections']): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }

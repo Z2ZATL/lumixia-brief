@@ -9,6 +9,7 @@ import { I18nProvider } from '../../src/i18n';
 import { api } from '../../src/lib/api';
 import { AuthCallback } from '../../src/pages/AuthCallback';
 import { NotionCallback } from '../../src/pages/NotionCallback';
+import { OAuthConsent } from '../../src/pages/OAuthConsent';
 import { Security } from '../../src/pages/Security';
 
 const mocks = vi.hoisted(() => ({
@@ -26,6 +27,9 @@ const mocks = vi.hoisted(() => ({
   getAccessToken: vi.fn(),
   refreshAccessToken: vi.fn(),
   expireBrowserSession: vi.fn(),
+  getAuthorizationDetails: vi.fn(),
+  approveAuthorization: vi.fn(),
+  denyAuthorization: vi.fn(),
 }));
 
 const client = {
@@ -43,6 +47,11 @@ const client = {
     exchangeCodeForSession: mocks.exchangeCodeForSession,
     signOut: mocks.signOut,
     onAuthStateChange: mocks.onAuthStateChange,
+    oauth: {
+      getAuthorizationDetails: mocks.getAuthorizationDetails,
+      approveAuthorization: mocks.approveAuthorization,
+      denyAuthorization: mocks.denyAuthorization,
+    },
   },
 } as unknown as SupabaseClient;
 
@@ -262,7 +271,51 @@ describe('Supabase authentication UI', () => {
     await userEvent.click(screen.getByRole('button', { name: /close this tab/i }));
     expect(close).toHaveBeenCalledOnce();
     close.mockRestore();
-    vi.unstubAllGlobals();
+  });
+
+  it('shows a scrubbed AAL2 Codex consent and blocks an unsafe provider redirect', async () => {
+    const authorizationId = '11111111-1111-4111-8111-111111111111';
+    window.history.replaceState({}, '', `/oauth/consent?authorization_id=${authorizationId}`);
+    mocks.getAuthorizationDetails.mockResolvedValue({
+      data: {
+        authorization_id: authorizationId,
+        redirect_uri: 'http://127.0.0.1:4555/callback',
+        client: {
+          id: '22222222-2222-4222-8222-222222222222',
+          name: 'Codex Desktop',
+          uri: 'https://openai.com/codex',
+          logo_uri: '',
+        },
+        user: { id: session.user.id, email: 'private@example.com' },
+        scope: 'openid',
+      },
+      error: null,
+    });
+    mocks.approveAuthorization.mockResolvedValue({
+      data: { redirect_url: 'javascript:alert(1)' },
+      error: null,
+    });
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={['/oauth/consent']}>
+          <I18nProvider>
+            <AuthContext.Provider value={oneFactorContext()}>
+              <OAuthConsent />
+            </AuthContext.Provider>
+          </I18nProvider>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(await screen.findByText('Codex Desktop')).toBeVisible();
+    expect(screen.getByText('http://127.0.0.1:4555/callback')).toBeVisible();
+    expect(screen.queryByText('private@example.com')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('');
+    expect(mocks.getAuthorizationDetails).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: /allow codex/i }));
+    expect(mocks.approveAuthorization).toHaveBeenCalledWith(authorizationId, {
+      skipBrowserRedirect: true,
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be completed/i);
   });
 });
 

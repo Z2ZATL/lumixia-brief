@@ -28,6 +28,17 @@ export function Settings() {
         onConnect={notion.connect}
         onDisconnect={notion.disconnect}
       />
+      <section className="connection-card codex-card" aria-labelledby="codex-connection-title">
+        <div className="codex-logo" aria-hidden="true">
+          C
+        </div>
+        <div>
+          <h2 id="codex-connection-title">Codex</h2>
+          <p>{t('codexSettingsBody')}</p>
+          <code>{`${window.location.origin}/api/mcp`}</code>
+        </div>
+        <span className="connection-status connected">{t('noApiCharge')}</span>
+      </section>
       <PrivacyPanels t={t} />
     </main>
   );

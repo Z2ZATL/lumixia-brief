@@ -7,6 +7,7 @@ export interface VerifiedIdentity {
   userId: string;
   accessToken: string;
   aal: 'aal2';
+  clientId?: string;
 }
 
 export interface IdentityVerifier {
@@ -15,6 +16,14 @@ export interface IdentityVerifier {
 
 const uuidSchema = z.string().uuid();
 const decodedExpirySchema = z.object({ exp: z.number().int() });
+const identityClaimsSchema = z.object({
+  iss: z.string(),
+  aud: z.unknown(),
+  role: z.literal('authenticated'),
+  sub: uuidSchema,
+  aal: z.string(),
+  client_id: z.string().trim().min(1).max(200).optional(),
+});
 
 export class LocalDemoIdentityVerifier implements IdentityVerifier {
   async verify(_bearerToken: string, signal: AbortSignal): Promise<VerifiedIdentity> {
@@ -46,20 +55,33 @@ export class SupabaseIdentityVerifier implements IdentityVerifier {
       const { data, error } = await client.auth.getClaims(bearerToken);
       if (signal.aborted) throw unavailable();
       if (error || !data) throw invalidToken();
-      const { claims } = data;
-      if (claims.iss !== `${this.url}/auth/v1`) throw invalidToken();
-      if (claims.role !== 'authenticated') throw invalidToken();
-      if (!uuidSchema.safeParse(claims.sub).success) throw invalidToken();
-      if (claims.aal !== 'aal2') {
-        throw new HttpError(403, 'MFA_REQUIRED', 'Complete TOTP verification before continuing.');
-      }
-      return { userId: claims.sub, accessToken: bearerToken, aal: 'aal2' };
+      return validateClaims(data.claims, `${this.url}/auth/v1`, bearerToken);
     } catch (error) {
       if (error instanceof HttpError) throw error;
       if (error instanceof TypeError || signal.aborted) throw unavailable();
       throw invalidToken();
     }
   }
+}
+
+function validateClaims(
+  claims: unknown,
+  expectedIssuer: string,
+  bearerToken: string,
+): VerifiedIdentity {
+  const parsed = identityClaimsSchema.safeParse(claims);
+  if (!parsed.success) throw invalidToken();
+  if (parsed.data.iss !== expectedIssuer) throw invalidToken();
+  if (!validAudience(parsed.data.aud)) throw invalidToken();
+  if (parsed.data.aal !== 'aal2') {
+    throw new HttpError(403, 'MFA_REQUIRED', 'Complete TOTP verification before continuing.');
+  }
+  return {
+    userId: parsed.data.sub,
+    accessToken: bearerToken,
+    aal: 'aal2',
+    ...(parsed.data.client_id ? { clientId: parsed.data.client_id } : {}),
+  };
 }
 
 export function createIdentityVerifier(config: AppConfig): IdentityVerifier {
@@ -92,6 +114,12 @@ function tokenExpired(token: string): boolean {
 
 function invalidToken() {
   return new HttpError(401, 'AUTH_TOKEN_INVALID', 'The authentication token is invalid.');
+}
+
+function validAudience(audience: unknown): boolean {
+  return (
+    audience === 'authenticated' || (Array.isArray(audience) && audience.includes('authenticated'))
+  );
 }
 
 function unavailable() {

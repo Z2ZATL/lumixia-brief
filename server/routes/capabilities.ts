@@ -15,6 +15,10 @@ export function createCapabilityRouter(config: AppConfig) {
           mode: config.NOTION_PROVIDER_MODE,
           available: config.NOTION_PROVIDER_MODE === 'live' || config.APP_ENV === 'local',
         },
+        codex: {
+          mode: config.CODEX_MCP_MODE,
+          available: config.codexAvailable,
+        },
       }),
     );
   });
