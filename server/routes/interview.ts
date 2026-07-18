@@ -1,6 +1,7 @@
 import { Router, type Response } from 'express';
-import { submitAnswerInputSchema } from '../../shared/contracts.js';
+import { codexLocalInterviewInputSchema, submitAnswerInputSchema } from '../../shared/contracts.js';
 import type { AppConfig } from '../config.js';
+import { HttpError } from '../http.js';
 import { perUserRateLimit } from '../http.js';
 import { InterviewService, type InterviewServiceResult } from '../services/interview.js';
 import { asyncRoute, clientAnswerId, projectId, requestIdentity, validateBody } from './request.js';
@@ -40,6 +41,22 @@ export function createInterviewRouter(service: InterviewService, config: AppConf
     '/projects/:projectId/interview/answers/:clientAnswerId/retry',
     asyncRoute(async (req, res) => {
       const result = await service.retry(requestIdentity(req), projectId(req), clientAnswerId(req));
+      sendResult(res, result);
+    }),
+  );
+  router.post(
+    '/projects/:projectId/interview/codex-local',
+    perUserRateLimit(config, 15, 60),
+    validateBody(codexLocalInterviewInputSchema),
+    asyncRoute(async (req, res) => {
+      if (!config.codexLocalAvailable) {
+        throw new HttpError(503, 'CODEX_LOCAL_DISABLED', 'The local Codex bridge is disabled.');
+      }
+      const result = await service.submitFromCodex(
+        requestIdentity(req),
+        projectId(req),
+        codexLocalInterviewInputSchema.parse(req.body),
+      );
       sendResult(res, result);
     }),
   );

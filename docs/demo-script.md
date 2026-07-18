@@ -10,6 +10,8 @@ Show the landing page and the private-workspace claim.
 
 Create **Founder preparing a brief for Codex** with one deliberately incomplete sentence. Explain that all project routes require Google plus TOTP and that no project content enters logs.
 
+Before recording, keep `npm run codex:bridge` running and pair it from **Connections**. Do not show the setup step unless needed; the green `gpt-5.6-sol` local-Codex indicator is sufficient evidence during the interview.
+
 ## 0:45–1:25 — Adaptive interview
 
 Answer representative Problem, Audience, Outcome, Scope, Success criteria, and Constraint questions. Show that:
@@ -20,7 +22,7 @@ Answer representative Problem, Audience, Outcome, Scope, Success criteria, and C
 - assumptions and contradictions are visible; and
 - the server—not GPT—calculates readiness.
 
-Voiceover: “Codex implemented the app and tests. GPT-5.6 runs each submitted interview turn with Structured Outputs and `store:false`; it is not called while I type.”
+Voiceover: “Codex implemented the app and tests, and this demo also uses Codex on my computer as the alignment model. Each submitted answer is processed as strict structured output; the Lumixia server calculates confidence and decides whether to continue. This uses my Codex plan, not a paid API key, and nothing runs while I type.”
 
 ## 1:25–1:55 — Brief and alignment evidence
 
@@ -36,6 +38,6 @@ Select a Notion parent page and sync. Re-run sync to demonstrate the same page/v
 
 ## 2:35–2:45 — Evidence
 
-Show the repository README, CI **Required CI** check, Build Ledger, and core `/feedback` Session ID `019f614d-cd80-76d3-8151-b8271f575a3f`.
+Show the repository README, CI **Required CI** check, Build Ledger, the recorded `gpt-5.6-sol` bridge smoke, and core `/feedback` Session ID `019f614d-cd80-76d3-8151-b8271f575a3f`.
 
 End: “Lumixia Brief makes alignment a visible, human-approved product step before AI work begins.”

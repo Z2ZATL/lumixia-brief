@@ -56,6 +56,31 @@ test('founder turns a vague Codex idea into an approved brief', async ({ page })
   await expect(page.getByText('Alignment Improvement')).toBeVisible();
   await page.getByRole('button', { name: /Approve snapshot/ }).click();
   await expect(page.getByText('Approved', { exact: true }).first()).toBeVisible();
+
+  const viewport = page.viewportSize();
+  if (viewport && viewport.width > 900) {
+    const approvedBriefUrl = page.url();
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/settings');
+    const connectNotion = page.getByRole('button', { name: /Connect Notion/ });
+    if (await connectNotion.isVisible()) {
+      const popupPromise = page.waitForEvent('popup');
+      await connectNotion.click();
+      const callbackTab = await popupPromise;
+      await callbackTab.waitForURL(/\/notion\/callback/);
+      await callbackTab.waitForEvent('close');
+      await expect(page.getByText('Connected', { exact: true })).toBeVisible();
+    }
+    await page.goto(approvedBriefUrl);
+    const parent = page.getByRole('combobox', { name: 'Notion parent page ID' });
+    await parent.selectOption({ label: 'Product briefs' });
+    await page.getByRole('button', { name: 'Set parent' }).click();
+    const sync = page.getByRole('button', { name: 'Sync to Notion' });
+    await sync.scrollIntoViewIfNeeded();
+    await expect(sync).toBeInViewport();
+    await sync.click();
+    await expect(page.getByRole('button', { name: 'Synced' })).toBeVisible();
+  }
 });
 
 test('landing and app remain usable at 390px', async ({ page }) => {

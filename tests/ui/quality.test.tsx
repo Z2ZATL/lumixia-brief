@@ -27,13 +27,29 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   startInterview: vi.fn(),
   submitAnswer: vi.fn<(id: string, input: AnswerSubmission) => Promise<{ project: Project }>>(),
+  submitCodexAnswer: vi.fn(),
   retryAnswer: vi.fn(),
   generateBrief: vi.fn(),
+  generateCodexBrief: vi.fn(),
   editBrief: vi.fn(),
   approveBrief: vi.fn(),
   requestChanges: vi.fn(),
   selectNotionParent: vi.fn(),
   syncNotion: vi.fn(),
+  bridgeStatus: vi.fn(),
+  bridgeAnalyze: vi.fn(),
+  bridgeGenerate: vi.fn(),
+  bridgeConnect: vi.fn(),
+  bridgeClear: vi.fn(),
+}));
+
+vi.mock('../../src/lib/codexBridge', () => ({
+  CodexBridgeError: class CodexBridgeError extends Error {},
+  codexBridgeStatus: mocks.bridgeStatus,
+  analyzeWithCodexBridge: mocks.bridgeAnalyze,
+  generateWithCodexBridge: mocks.bridgeGenerate,
+  connectCodexBridge: mocks.bridgeConnect,
+  clearCodexBridgeSession: mocks.bridgeClear,
 }));
 
 vi.mock('../../src/lib/api', async (importOriginal) => {
@@ -48,8 +64,10 @@ vi.mock('../../src/lib/api', async (importOriginal) => {
       remove: mocks.remove,
       startInterview: mocks.startInterview,
       submitAnswer: mocks.submitAnswer,
+      submitCodexAnswer: mocks.submitCodexAnswer,
       retryAnswer: mocks.retryAnswer,
       generateBrief: mocks.generateBrief,
+      generateCodexBrief: mocks.generateCodexBrief,
       editBrief: mocks.editBrief,
       approveBrief: mocks.approveBrief,
       requestChanges: mocks.requestChanges,
@@ -84,9 +102,12 @@ describe('quality regressions', () => {
     localStorage.clear();
     mocks.list.mockResolvedValue({ projects: [] });
     mocks.api.mockResolvedValue({ connected: false });
+    mocks.bridgeStatus.mockResolvedValue(null);
     mocks.capabilities.mockResolvedValue({
       model: { mode: 'mock', available: true },
       notion: { mode: 'mock', available: true },
+      codex: { mode: 'enabled', available: true },
+      codexLocal: { mode: 'enabled', available: true },
     });
     mocks.startInterview.mockImplementation(async (id: string) => ({
       project: { ...makeProject(), id },
@@ -150,12 +171,60 @@ describe('quality regressions', () => {
     mocks.capabilities.mockResolvedValue({
       model: { mode: 'disabled', available: false },
       notion: { mode: 'live', available: true },
+      codex: { mode: 'enabled', available: true },
+      codexLocal: { mode: 'enabled', available: true },
     });
     renderRoute(`/projects/${project.id}/interview`, <Interview />);
-    expect(await screen.findByRole('status')).toHaveTextContent(/AI generation is paused/i);
+    expect(await screen.findByRole('status')).toHaveTextContent(/local Codex demo bridge/i);
     expect(screen.getByLabelText(/your answer/i)).toBeDisabled();
     expect(screen.getByRole('button', { name: /save answer/i })).toBeDisabled();
     expect(mocks.submitAnswer).not.toHaveBeenCalled();
+  });
+
+  it('routes website answers through the paired local Codex bridge', async () => {
+    const project = makeProject();
+    const processed = structuredClone(project);
+    let resolveAnalysis: ((value: Project['analysis']) => void) | undefined;
+    processed.answers.push({
+      id: '77777777-7777-4777-8777-777777777777',
+      clientAnswerId: '77777777-7777-4777-8777-777777777777',
+      question: project.currentQuestion!.text,
+      dimension: project.currentQuestion!.dimension,
+      text: 'Founders preparing a brief for Codex.',
+      status: 'processed',
+      errorCode: null,
+      createdAt: project.createdAt,
+      processedAt: project.updatedAt,
+    });
+    mocks.get.mockResolvedValue({ project });
+    mocks.capabilities.mockResolvedValue({
+      model: { mode: 'disabled', available: false },
+      notion: { mode: 'live', available: true },
+      codex: { mode: 'enabled', available: true },
+      codexLocal: { mode: 'enabled', available: true },
+    });
+    mocks.bridgeStatus.mockResolvedValue({ ready: true, model: 'gpt-5.6-sol' });
+    mocks.bridgeAnalyze.mockImplementation(
+      () =>
+        new Promise<Project['analysis']>((resolve) => {
+          resolveAnalysis = resolve;
+        }),
+    );
+    mocks.submitCodexAnswer.mockResolvedValue({ project: processed, status: 'processed' });
+    renderRoute(`/projects/${project.id}/interview`, <Interview />);
+    const user = userEvent.setup();
+    expect(await screen.findByRole('status')).toHaveTextContent(/ready for your next answer/i);
+    await user.type(
+      await screen.findByLabelText(/your answer/i),
+      'Founders preparing a brief for Codex.',
+    );
+    await user.click(screen.getByRole('button', { name: /save answer/i }));
+    await waitFor(() => expect(mocks.bridgeAnalyze).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('status')).toHaveTextContent(/checking alignment/i);
+    await act(async () => resolveAnalysis?.(project.analysis));
+    expect(mocks.submitCodexAnswer).toHaveBeenCalledTimes(1);
+    expect(mocks.submitAnswer).not.toHaveBeenCalled();
+    expect(await screen.findByRole('status')).toHaveTextContent(/gpt-5.6-sol/);
   });
 
   it('stops approval when saving a dirty brief fails and skips Notion pages when disconnected', async () => {

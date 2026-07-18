@@ -2,11 +2,11 @@
 
 ## Environments
 
-| Environment | Authentication             | Supabase             | Vercel              | Model / Notion  |
-| ----------- | -------------------------- | -------------------- | ------------------- | --------------- |
-| Local       | isolated safe demo or Auth | memory/local Docker  | native Vite/Express | mock / mock     |
-| Preview     | Google + native TOTP       | dedicated staging    | PR preview          | mock / live     |
-| Production  | Google + native TOTP       | dedicated production | protected main      | disabled / live |
+| Environment | Authentication             | Supabase             | Vercel              | Model / Notion              |
+| ----------- | -------------------------- | -------------------- | ------------------- | --------------------------- |
+| Local       | isolated safe demo or Auth | memory/local Docker  | native Vite/Express | mock or Codex bridge / mock |
+| Preview     | Google + native TOTP       | dedicated staging    | PR preview          | mock / live                 |
+| Production  | Google + native TOTP       | dedicated production | protected main      | disabled / live             |
 
 Never point preview at production Supabase or reuse production token-encryption keys.
 
@@ -38,6 +38,16 @@ Never point preview at production Supabase or reuse production token-encryption 
 7. The deployment-status workflow verifies `/api/health`, `/api/ready`, and the exposed SHA, then uploads sanitized evidence.
 8. Verify Google/TOTP, the synthetic founder project, and Notion sync, then record the deployment URL/SHA and CI URL in the Build Ledger.
 
+### Build Week Codex bridge smoke
+
+1. Confirm `OPENAI_API_KEY` is absent and Production remains `MODEL_PROVIDER_MODE=disabled`.
+2. Start `npm run codex:bridge`; it must bind only to `127.0.0.1:8790` and print no token or content.
+3. In Lumixia **Connections**, pair **Codex demo bridge** and allow the browser's local-network permission if prompted.
+4. Submit one synthetic website answer and verify the green model indicator, eight dimension assessments, and a new question.
+5. Complete at least five synthetic turns, generate the structured brief, approve it in the direct AAL2 browser session, and sync to Notion.
+6. Confirm browser console/network has no unexpected warning, error, failed request, or HTTP status at least 400.
+7. Record only model identifier, pass/fail, duration class, deployment SHA, and sanitized test counts. Never record the answer, prompt, bridge token, analysis, or brief.
+
 ## Synthetic founder example
 
 Use operator credentials only in the invoking shell. Never place `SUPABASE_DB_URL` or `LUMIXIA_SEED_OWNER_ID` in Vercel, GitHub repository variables, logs, or evidence.
@@ -66,5 +76,6 @@ The repository-owned `Production uptime` workflow probes `/`, `/api/health`, and
 - Real Google/TOTP enrollment and backup-factor confirmation.
 - Notion consent, page selection, retry, and expired-token refresh.
 - OpenAI refusal/timeout/malformed-output fixtures.
+- Local Codex interview + brief schema smoke with `OPENAI_API_KEY` absent.
 - Vercel rollback rehearsal.
 - Repository judge access from a non-owner check.

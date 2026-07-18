@@ -3,6 +3,14 @@ import type { NavigateFunction } from 'react-router-dom';
 import type { DimensionKey, Project } from '../../../shared/contracts';
 import type { Translator } from '../brief/meta';
 import { ApiError, projectApi, systemApi } from '../../lib/api';
+import {
+  analyzeWithCodexBridge,
+  CodexBridgeError,
+  codexBridgeStatus,
+  generateWithCodexBridge,
+} from '../../lib/codexBridge';
+
+type ProcessingMode = 'model' | 'codex-local' | 'unavailable';
 
 export interface PendingAnswer {
   clientAnswerId: string;
@@ -17,6 +25,8 @@ export interface InterviewSession {
   busy: boolean;
   error: string;
   modelAvailable: boolean;
+  processingMode: ProcessingMode;
+  processingModel: string | null;
   pendingAnswer: MutableRefObject<PendingAnswer | null>;
   setProject: (project: Project) => void;
   setAnswer: (answer: string) => void;
@@ -30,6 +40,8 @@ export function useInterviewSession(id: string): InterviewSession {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [modelAvailable, setModelAvailable] = useState(true);
+  const [processingMode, setProcessingMode] = useState<ProcessingMode>('unavailable');
+  const [processingModel, setProcessingModel] = useState<string | null>(null);
   const pendingAnswer = useRef<PendingAnswer | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -38,10 +50,16 @@ export function useInterviewSession(id: string): InterviewSession {
       void Promise.all([
         projectApi.get(id, controller.signal),
         systemApi.capabilities(controller.signal),
+        codexBridgeStatus(controller.signal),
       ])
-        .then(([{ project }, capabilities]) => {
+        .then(([{ project }, capabilities, bridge]) => {
+          const localReady = capabilities.codexLocal.available && bridge?.ready;
           setProject(project);
-          setModelAvailable(capabilities.model.available);
+          setModelAvailable(Boolean(localReady || capabilities.model.available));
+          setProcessingMode(
+            localReady ? 'codex-local' : capabilities.model.available ? 'model' : 'unavailable',
+          );
+          setProcessingModel(localReady ? bridge.model : null);
         })
         .catch((caught: Error) => {
           if (!controller.signal.aborted) setError(caught.message);
@@ -57,6 +75,8 @@ export function useInterviewSession(id: string): InterviewSession {
     busy,
     error,
     modelAvailable,
+    processingMode,
+    processingModel,
     pendingAnswer,
     setProject,
     setAnswer,
@@ -93,6 +113,7 @@ export function recoveryOutcome(project: Project, submission: PendingAnswer, err
 }
 
 function requestError(caught: unknown, t: Translator) {
+  if (caught instanceof CodexBridgeError) return t('codexBridgeProcessingFailed');
   if (caught instanceof ApiError && caught.code === 'MODEL_NOT_CONFIGURED') {
     return t('modelNotConfigured');
   }
@@ -132,7 +153,7 @@ export async function submitInterviewAnswer(session: InterviewSession, t: Transl
   );
   session.pendingAnswer.current = submission;
   try {
-    const result = await projectApi.submitAnswer(session.project.id, submission);
+    const result = await submitAnswer(session, submission);
     session.setProject(result.project);
     session.pendingAnswer.current = null;
     session.setAnswer('');
@@ -144,6 +165,23 @@ export async function submitInterviewAnswer(session: InterviewSession, t: Transl
   }
 }
 
+async function submitAnswer(session: InterviewSession, submission: PendingAnswer) {
+  const project = session.project!;
+  if (session.processingMode !== 'codex-local') {
+    return projectApi.submitAnswer(project.id, submission);
+  }
+  const analysis = await analyzeWithCodexBridge(
+    project,
+    submission.clientAnswerId,
+    submission.answer,
+  );
+  return projectApi.submitCodexAnswer(project.id, {
+    clientAnswerId: submission.clientAnswerId,
+    answer: submission.answer,
+    analysis,
+  });
+}
+
 export async function retryInterviewAnswer(
   session: InterviewSession,
   clientAnswerId: string,
@@ -153,7 +191,10 @@ export async function retryInterviewAnswer(
   session.setBusy(true);
   session.setError('');
   try {
-    const result = await projectApi.retryAnswer(session.project.id, clientAnswerId);
+    const result =
+      session.processingMode === 'codex-local'
+        ? await retryWithCodex(session, clientAnswerId)
+        : await projectApi.retryAnswer(session.project.id, clientAnswerId);
     session.setProject(result.project);
     if (session.pendingAnswer.current?.clientAnswerId === clientAnswerId) {
       session.pendingAnswer.current = null;
@@ -166,6 +207,18 @@ export async function retryInterviewAnswer(
   }
 }
 
+async function retryWithCodex(session: InterviewSession, clientAnswerId: string) {
+  const project = session.project!;
+  const answer = project.answers.find((item) => item.clientAnswerId === clientAnswerId);
+  if (!answer) throw new Error('ANSWER_NOT_FOUND');
+  const analysis = await analyzeWithCodexBridge(project, clientAnswerId, answer.text);
+  return projectApi.submitCodexAnswer(project.id, {
+    clientAnswerId,
+    answer: answer.text,
+    analysis,
+  });
+}
+
 export async function generateInterviewBrief(
   session: InterviewSession,
   navigate: NavigateFunction,
@@ -175,7 +228,12 @@ export async function generateInterviewBrief(
   session.setBusy(true);
   session.setError('');
   try {
-    await projectApi.generateBrief(session.project.id);
+    if (session.processingMode === 'codex-local') {
+      const brief = await generateWithCodexBridge(session.project);
+      await projectApi.generateCodexBrief(session.project.id, { brief });
+    } else {
+      await projectApi.generateBrief(session.project.id);
+    }
     void navigate(`/projects/${session.project.id}/brief`);
   } catch (caught) {
     session.setError(requestError(caught, t));

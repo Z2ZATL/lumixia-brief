@@ -10,6 +10,15 @@ interface ConnectionPanelProps {
   onDisconnect: () => Promise<void>;
 }
 
+interface CodexBridgePanelProps {
+  connectedModel: string | null;
+  supported: boolean | null;
+  busy: boolean;
+  t: Translator;
+  onConnect: () => Promise<void>;
+  onDisconnect: () => void;
+}
+
 export function ConnectionPanel(props: ConnectionPanelProps) {
   const status = props.loading
     ? props.t('checkingConnection')
@@ -46,6 +55,40 @@ export function ConnectionPanel(props: ConnectionPanelProps) {
   );
 }
 
+export function CodexBridgePanel(props: CodexBridgePanelProps) {
+  const connected = Boolean(props.connectedModel);
+  const status = connected
+    ? `${props.t('codexBridgeConnected')} · ${props.connectedModel}`
+    : props.supported === false
+      ? props.t('codexBridgeDisabled')
+      : props.t('codexBridgeUnavailable');
+  return (
+    <section className="connection-card codex-card" aria-labelledby="codex-bridge-title">
+      <div className="codex-logo" aria-hidden="true">
+        C
+      </div>
+      <div>
+        <h2 id="codex-bridge-title">{props.t('codexBridgeTitle')}</h2>
+        <p>{props.t('codexBridgeBody')}</p>
+        <span className={`connection-status ${connected ? 'connected' : ''}`}>{status}</span>
+      </div>
+      {connected ? (
+        <button className="button ghost" onClick={props.onDisconnect} disabled={props.busy}>
+          {props.t('disconnect')}
+        </button>
+      ) : (
+        <button
+          className="button primary"
+          onClick={props.onConnect}
+          disabled={props.busy || props.supported !== true}
+        >
+          {props.busy ? props.t('checkingConnection') : props.t('codexBridgeConnect')} →
+        </button>
+      )}
+    </section>
+  );
+}
+
 export function PrivacyPanels({ t }: { t: Translator }) {
   return (
     <section className="security-notes">
@@ -54,6 +97,10 @@ export function PrivacyPanels({ t }: { t: Translator }) {
         <article>
           <b>OpenAI</b>
           <p>{t('openAiPrivacy')}</p>
+        </article>
+        <article>
+          <b>{t('codexBridgeTitle')}</b>
+          <p>{t('codexBridgePrivacy')}</p>
         </article>
         <article>
           <b>Notion</b>

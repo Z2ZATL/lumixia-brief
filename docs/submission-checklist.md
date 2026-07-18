@@ -9,6 +9,9 @@
 - [x] Build Ledger and ADR structure
 - [ ] Live GPT-5.6 contract smoke test with synthetic data
 - [x] Disabled-model behavior, fake Responses-client contract, retry, refusal, schema, and no-network regression tests
+- [x] Local Codex `gpt-5.6-sol` interview and brief schema smokes with no OpenAI API key
+- [x] Full local website → Codex → five adaptive turns → 92% readiness → brief → approval → idempotent mock-Notion rehearsal
+- [ ] Production website → local Codex → question → brief → approval → Notion recording rehearsal
 - [x] Real Google/TOTP + backup-factor smoke test
 - [x] Real Notion OAuth/refresh/idempotent-sync smoke test
 - [x] Seeded founder example in production
@@ -38,6 +41,7 @@
 
 - [ ] Public YouTube video under three minutes with voiceover
 - [ ] Video names Codex implementation and GPT-5.6 runtime roles
+- [ ] Video explicitly distinguishes Codex-plan demo processing from the disabled paid API provider
 - [ ] Devpost category: Work & Productivity
 - [ ] Project description, production Vercel URL, public repo URL, and `/feedback` Session ID entered
 - [ ] Final submission dry run from a signed-out browser

@@ -14,8 +14,18 @@
 2. Express validates session, MFA, exact origin, rate, size, schema, and ownership before business logic.
 3. Supabase repeats ownership and MFA enforcement with forced RLS; application authorization is not sufficient by itself.
 4. OpenAI receives interview context only on explicit submit/generate in live mode and uses `store:false`; disabled mode creates no OpenAI client or network request.
-5. Notion receives only an approved version after explicit sync.
-6. Monitoring receives operational metadata only.
+5. Local demo mode sends minimized project context from the owner browser directly to `127.0.0.1`; Codex receives no Supabase token, owner ID, Notion identifier, or provider credential.
+6. Notion receives only an approved version after explicit sync.
+7. Monitoring receives operational metadata only.
+
+## Local Codex bridge boundary
+
+- The worker binds only to loopback and accepts exact allowlisted Lumixia origins.
+- Pairing uses an in-memory random token delivered with origin-bound `postMessage`; it is never placed in a URL, terminal log, repository, database, or monitoring event.
+- Browser storage is session-only and is cleared on sign-out.
+- Codex runs ephemerally in an empty temporary directory, ignores user configuration and MCP servers, uses a read-only sandbox with approvals disabled, and must return strict JSON Schema output.
+- The worker processes one operation at a time, caps input/output, suppresses successful CLI diagnostics, and returns only safe error codes.
+- This is an owner-operated demo boundary, not a multi-user production inference service.
 
 ## Required Supabase Auth configuration
 

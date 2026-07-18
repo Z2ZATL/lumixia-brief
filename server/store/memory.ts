@@ -75,12 +75,18 @@ export class MemoryProjectStore implements ProjectStore {
     const existing = this.answerClaims.get(key);
     const now = Date.now();
     if (existing) {
+      if (existing.status === 'failed' && retryFailed) {
+        existing.payload = clone(payload);
+        existing.status = 'pending';
+        existing.result = null;
+        existing.errorCode = null;
+        existing.leaseExpiresAt = now + 45_000;
+        return { state: 'claimed', status: 'pending', result: null, errorCode: null };
+      }
       if (JSON.stringify(existing.payload) !== JSON.stringify(payload)) {
         return { state: 'conflict', status: existing.status, result: null, errorCode: null };
       }
-      const retryable =
-        (existing.status === 'failed' && retryFailed) ||
-        (existing.status === 'pending' && existing.leaseExpiresAt <= now);
+      const retryable = existing.status === 'pending' && existing.leaseExpiresAt <= now;
       if (retryable) {
         existing.status = 'pending';
         existing.errorCode = null;

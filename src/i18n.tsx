@@ -50,7 +50,8 @@ const messages = {
     to: 'Final interview',
     decisions: 'human decisions remaining',
     retry: 'Retry saved answer',
-    modelNotConfigured: 'AI generation is paused until the OpenAI provider is enabled.',
+    modelNotConfigured:
+      'Start and connect the local Codex demo bridge, or enable the OpenAI provider.',
     status: 'Status',
     secureSetup: 'Complete two-step security',
     secureBody:
@@ -164,7 +165,8 @@ const messages = {
     disconnect: 'Disconnect',
     connectNotionAction: 'Connect Notion',
     whatLeaves: 'What leaves Lumixia?',
-    openAiPrivacy: 'Interview context only when you submit an answer; requests use store:false.',
+    openAiPrivacy:
+      'Live API mode sends interview context only on submit and uses store:false. It is disabled for the no-cost demo.',
     notionPrivacy: 'Only the approved brief version you explicitly sync.',
     monitoring: 'Monitoring',
     monitoringPrivacy:
@@ -241,6 +243,22 @@ const messages = {
     codexSettingsBody:
       'Add this Streamable HTTP endpoint in Codex Settings, then authenticate with Google and TOTP. Codex can interview and draft; approval stays here.',
     noApiCharge: 'No OpenAI API charge',
+    codexBridgeTitle: 'Codex demo bridge',
+    codexBridgeBody:
+      'Process website interview answers with Codex running only on this computer. Start npm run codex:bridge, then connect here.',
+    codexBridgeConnect: 'Connect local Codex',
+    codexBridgeConnected: 'Local Codex ready',
+    codexBridgeUnavailable: 'Local bridge not connected',
+    codexBridgeDisabled: 'Local bridge endpoints are disabled in this deployment',
+    codexBridgePairFailed:
+      'Could not connect to the local Codex bridge. Start the worker, allow local network access, and try again.',
+    codexBridgeProcessingFailed:
+      'Local Codex could not complete this step. Keep the answer and try again.',
+    codexBridgePrivacy:
+      'Interview context goes directly from this browser to Codex on 127.0.0.1 and is never sent to an OpenAI API key.',
+    localCodexReady: 'Local Codex is ready for your next answer',
+    localCodexAnalyzing: 'Local Codex is checking alignment and choosing the next question',
+    localCodexDrafting: 'Local Codex is drafting the structured brief',
   },
   th: {
     projects: 'โปรเจกต์',
@@ -291,7 +309,8 @@ const messages = {
     to: 'หลังสัมภาษณ์',
     decisions: 'เรื่องที่มนุษย์ยังต้องตัดสินใจ',
     retry: 'ลองประมวลผลคำตอบที่บันทึกแล้วอีกครั้ง',
-    modelNotConfigured: 'ระบบพักการสร้างด้วย AI จนกว่าจะเปิดใช้งาน OpenAI provider',
+    modelNotConfigured:
+      'กรุณาเปิดและเชื่อม Codex demo bridge บนเครื่องนี้ หรือเปิดใช้งาน OpenAI provider',
     status: 'สถานะ',
     secureSetup: 'ตั้งค่าความปลอดภัยสองชั้นให้เสร็จ',
     secureBody:
@@ -403,7 +422,8 @@ const messages = {
     disconnect: 'ยกเลิกการเชื่อมต่อ',
     connectNotionAction: 'เชื่อมต่อ Notion',
     whatLeaves: 'ข้อมูลใดออกจาก Lumixia?',
-    openAiPrivacy: 'ส่งบริบทการสัมภาษณ์เมื่อคุณส่งคำตอบเท่านั้น และใช้ store:false',
+    openAiPrivacy:
+      'โหมด Live API จะส่งบริบทเมื่อกดส่งเท่านั้นและใช้ store:false โดยโหมดเดโมแบบไม่เสียค่า API จะปิดส่วนนี้ไว้',
     notionPrivacy: 'ส่งเฉพาะเวอร์ชันบรีฟที่อนุมัติและคุณกด sync เอง',
     monitoring: 'การติดตามระบบ',
     monitoringPrivacy:
@@ -480,6 +500,22 @@ const messages = {
     codexSettingsBody:
       'เพิ่มปลายทาง Streamable HTTP นี้ใน Codex Settings แล้วเข้าสู่ระบบด้วย Google และ TOTP โดย Codex สัมภาษณ์และสร้างร่างได้ แต่การอนุมัติยังอยู่ที่นี่',
     noApiCharge: 'ไม่เสียค่า OpenAI API',
+    codexBridgeTitle: 'Codex demo bridge',
+    codexBridgeBody:
+      'ประมวลผลคำตอบจากหน้าเว็บด้วย Codex ที่ทำงานอยู่บนเครื่องนี้เท่านั้น เปิด npm run codex:bridge แล้วเชื่อมต่อที่นี่',
+    codexBridgeConnect: 'เชื่อม Codex บนเครื่อง',
+    codexBridgeConnected: 'Codex บนเครื่องพร้อมแล้ว',
+    codexBridgeUnavailable: 'ยังไม่ได้เชื่อม local bridge',
+    codexBridgeDisabled: 'deployment นี้ยังไม่ได้เปิด endpoint สำหรับ local bridge',
+    codexBridgePairFailed:
+      'เชื่อมต่อ Codex bridge ไม่สำเร็จ กรุณาเปิด Worker อนุญาต Local network access แล้วลองใหม่',
+    codexBridgeProcessingFailed:
+      'Codex บนเครื่องประมวลผลขั้นตอนนี้ไม่สำเร็จ ระบบยังเก็บคำตอบไว้ให้ลองอีกครั้ง',
+    codexBridgePrivacy:
+      'บริบทการสัมภาษณ์ส่งตรงจากเบราว์เซอร์ไปยัง Codex ที่ 127.0.0.1 และไม่ใช้ OpenAI API key',
+    localCodexReady: 'Codex บนเครื่องพร้อมประมวลผลคำตอบถัดไป',
+    localCodexAnalyzing: 'Codex บนเครื่องกำลังตรวจความชัดเจนและเลือกคำถามถัดไป',
+    localCodexDrafting: 'Codex บนเครื่องกำลังสร้างบรีฟแบบมีโครงสร้าง',
   },
 } as const;
 

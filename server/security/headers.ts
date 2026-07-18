@@ -17,7 +17,12 @@ export function securityHeaders(config: AppConfig) {
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'blob:'],
         fontSrc: ["'self'", 'data:'],
-        connectSrc: ["'self'", ...(supabaseOrigin ? [supabaseOrigin] : []), 'https://*.sentry.io'],
+        connectSrc: [
+          "'self'",
+          ...(supabaseOrigin ? [supabaseOrigin] : []),
+          'https://*.sentry.io',
+          'http://127.0.0.1:8790',
+        ],
         frameSrc: ["'none'"],
         workerSrc: ["'self'", 'blob:'],
         upgradeInsecureRequests: config.NODE_ENV === 'production' ? [] : null,

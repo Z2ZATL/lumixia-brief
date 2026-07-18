@@ -46,6 +46,7 @@
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
     "seed:founder": "tsx --env-file-if-exists=.env.local scripts/seed-founder-example.ts",
+    "codex:bridge": "tsx --env-file-if-exists=.env.local scripts/codex-local-bridge.ts",
     "vercel:dev": "npx --yes --loglevel=error vercel@56.1.0 dev",
     "audit:all": "npm audit --audit-level=high",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
@@ -71,6 +72,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@openai/codex": "0.144.6",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
