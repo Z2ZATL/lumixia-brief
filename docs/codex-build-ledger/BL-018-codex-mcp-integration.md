@@ -1,14 +1,14 @@
 # BL-018 — Owner-operated Codex MCP integration
 
-- Status: staging OAuth/Codex live smoke passed; production OAuth and migration ready; production code promotion pending
+- Status: complete; owner-operated Codex MCP is live in Production and the paid model provider remains disabled
 - Date started: 2026-07-18
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled throughout this milestone)
 - Implementation branch: `agent/codex-mcp-integration`
-- Implementation commits: `eca08fe` through `275e246`
-- Pull request: [Draft PR #33](https://github.com/Z2ZATL/lumixia-brief/pull/33)
-- CI: [run 29646740281](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29646740281) — every required job passed
+- Implementation commits: `eca08fe` through `275e246`; rebased main SHA `9b643d2`
+- Pull request: [Merged PR #33](https://github.com/Z2ZATL/lumixia-brief/pull/33)
+- CI: [PR run 29647183584](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29647183584) and [main run 29647294939](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29647294939) — every required job and the Production migration gate passed
 
 ## Sanitized owner instruction
 
@@ -52,12 +52,16 @@ Add a Lumixia Brief connection for Codex so the owner can run the adaptive inter
 - MCP `initialize` returned `200`, server name `lumixia-brief`, and a tools capability.
 - A real Codex CLI session using the owner's ChatGPT plan detected `list_projects` and returned the synthetic marker `LUMIXIA_MCP_SMOKE_OK`. The instruction prohibited tool calls, so no project list, prompt, answer, or brief content was read.
 - `OPENAI_API_KEY` was absent from this path and no paid OpenAI API request was made.
+- Vercel promoted exact main SHA `9b643d2` to `https://brief.z2zs.space`; `/`, `/api/health`, and `/api/ready` returned `200`, and protected-resource metadata advertised the Production Supabase issuer.
+- The GitHub Production environment gate was enabled only after the migration, OAuth, deployment, rollback path, and staging smoke were ready. Its forward-only migration rerun completed successfully.
+- The global Codex MCP entry now targets `https://brief.z2zs.space/api/mcp`. Production consent was approved through Google/TOTP, and Codex reported a successful OAuth login.
+- A second no-tool-call Codex discovery smoke returned `LUMIXIA_PRODUCTION_MCP_OK`. No project data or tool result was requested or recorded.
 
 ## Privacy boundary
 
 This entry records only sanitized implementation and verification metadata. It excludes prompts, answers, briefs, tool inputs/results, OAuth tokens, TOTP values, email addresses, user identifiers, secrets, request bodies, and chain-of-thought.
 
-## Remaining hosted acceptance
+## Hosted acceptance
 
 - [x] Enable Supabase OAuth Server and Dynamic Client Registration without a paid upgrade.
 - [x] Confirm the exact `/oauth/consent` path and asymmetric signing.
@@ -65,7 +69,7 @@ This entry records only sanitized implementation and verification metadata. It e
 - [x] Apply the AAL grant migration to Staging and Production and deploy the corrected exact PR SHA to Staging.
 - [x] Connect Codex interactively after Google/TOTP and run a no-tool-call discovery smoke.
 - [x] Confirm sanitized Staging runtime evidence without exposing identity, OAuth, or project data.
-- [ ] Merge the reviewed PR and promote the exact main SHA to Production.
-- [ ] Repeat health, readiness, OAuth discovery, and no-tool-call Codex smoke against Production.
+- [x] Merge the reviewed PR and promote the exact main SHA to Production.
+- [x] Repeat health, readiness, OAuth discovery, and no-tool-call Codex smoke against Production.
 
 The paid GPT-5.6 Responses API contract smoke remains intentionally separate and disabled.
