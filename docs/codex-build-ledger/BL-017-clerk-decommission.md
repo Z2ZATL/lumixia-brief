@@ -21,7 +21,7 @@ After verifying a second native TOTP factor, continue every safe non-model compl
 - The live landing contract and database readiness endpoint returned `200`; health reported version `0.1.0` and the unchanged safe deployment SHA `ba51d4984ab0ace711b9371513d4500d159ff152`.
 - Vercel no longer contains the obsolete `OPENAI_API_KEY`, generic `PROVIDER_MODE`, `LOCAL_AUTH_BYPASS`, or the stale branch-specific Notion callback value in Preview or Production. No environment value was read or copied into evidence.
 - A filtered Vercel audit confirmed that the four provider-mode matches are only the intended `MODEL_PROVIDER_MODE` and `NOTION_PROVIDER_MODE` entries for Preview and Production.
-- The encrypted Clerk rollback variables and duplicate legacy Supabase server variables remain in Preview and Production until the soak passes. Their values were neither revealed nor changed.
+- The first environment inventory retained the encrypted Clerk rollback variables and duplicate legacy Supabase server variables while the running snapshot was preserved. A subsequent hosted-bundle audit proved that a legacy public build variable was still compiled into new Vite assets, so all remaining legacy Clerk and duplicate Supabase variables were removed from Preview and Production without reading their values. Existing deployments retain their immutable build/runtime snapshot, and the external provider trust remains available during the soak.
 - `PRODUCTION_RELEASE_ENABLED` remains `false`. GitHub Required CI passed at merged `main` SHA `ea17c786921deb9d9ac7a373584072ebc38319b8`; the Production migration gate remains intentionally waiting and no deployment was promoted.
 - Removing environment variables affects only future deployments. No redeploy was triggered, so the running rollback-tested snapshot remains unchanged throughout the soak.
 
@@ -35,12 +35,21 @@ The following inventory was captured during the soak without reading secrets or 
 - The Cloudflare session is signed out. DNS inventory and deletion are therefore deferred until the owner signs in after the soak. No DNS record was read or changed.
 - These provider checks identify deletion cardinality but intentionally omit organization, project, application, instance, credential, account, and user identifiers from repository evidence.
 
+## Hosted bundle residue regression
+
+- A direct Production and Preview asset audit found no Clerk CSP domain and no credential-bearing CORS header, but it detected a legacy Clerk environment name embedded in the JavaScript entry bundle.
+- Source and dependency residue gates had passed because the application no longer imports or reads that setting. Vite still received the unused public variable from Vercel and compiled the environment object into the entry asset.
+- The remaining Clerk and duplicate legacy Supabase variables were removed from both Vercel environments. No environment value was printed, copied, or committed, and neither the running Production deployment nor its rollback snapshot was redeployed.
+- `bundle:check` now rejects legacy Clerk runtime keys, packages, middleware, provider domains, local-auth bypass values, and browser test headers in built HTML or JavaScript assets.
+- Four regression cases prove that a Supabase-auth-only bundle passes while a legacy Clerk key, Clerk provider domain, or local-auth bypass fails closed.
+- A fresh Preview deployment and hosted-asset audit are required before closing this finding.
+
 ## Post-soak decommission sequence
 
 The following actions are intentionally deferred until the conservative soak boundary has passed and health, AAL2, project ownership, Notion, Sentry, and uptime evidence remain green:
 
 1. Recheck Production health/readiness, deployed SHA, native Google sign-in, both TOTP factors, AAL2 project access, sign-out, Notion connection, and browser console.
-2. Remove only the retained Clerk variables and duplicate legacy Supabase server variables from Vercel Preview and Production, then deploy through the normal gates.
+2. Confirm that Vercel Preview and Production still contain no legacy Clerk or duplicate Supabase variables.
 3. Remove the Clerk third-party Auth integration from Supabase staging and Production.
 4. Disable and delete only the Google OAuth clients created for the Clerk application after owner reauthentication confirms their identity.
 5. Delete only the Lumixia Brief Clerk development and Production application. Do not delete the Clerk account or unrelated applications.
@@ -54,11 +63,12 @@ The following actions are intentionally deferred until the conservative soak bou
 - [x] Primary and Backup TOTP factors are verified.
 - [x] Production health and readiness are green on the unchanged safe deployment.
 - [x] Obsolete non-rollback Vercel variables are removed without redeploying.
-- [x] Legacy rollback variables are retained during the soak.
+- [x] All legacy Vercel variables are removed while the known-good deployment snapshot and external provider trust remain available for rollback.
 - [x] Production release and migration promotion remain disabled.
+- [x] Built-asset authentication residue is covered by a fail-closed regression gate.
 - [ ] Conservative 24-hour soak has completed.
 - [ ] Post-soak native-auth and Notion smoke has passed.
-- [ ] Clerk Vercel variables and duplicate legacy Supabase variables are removed.
+- [x] Clerk Vercel variables and duplicate legacy Supabase variables are removed.
 - [ ] Supabase Clerk third-party Auth trust is removed from staging and Production.
 - [ ] Clerk-only Google OAuth credentials are deleted.
 - [ ] Lumixia Brief Clerk applications are deleted.

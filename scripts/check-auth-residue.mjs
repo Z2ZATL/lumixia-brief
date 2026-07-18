@@ -1,13 +1,15 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-const historical = [
+const excludedPaths = [
   'CODEX_BUILD_LOG.md',
   'docs/codex-build-ledger/',
   'docs/decisions/0003-mfa-rls-privacy.md',
   'supabase/migrations/202607140001_initial.sql',
   'supabase/migrations/202607150001_quality_hardening.sql',
   'scripts/check-auth-residue.mjs',
+  'scripts/check-bundle.mjs',
+  'tests/unit/bundle-policy.test.ts',
 ];
 const forbidden = [
   /@clerk\//i,
@@ -25,7 +27,7 @@ const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclud
 })
   .split(/\r?\n/)
   .filter(Boolean)
-  .filter((file) => !historical.some((path) => file === path || file.startsWith(path)));
+  .filter((file) => !excludedPaths.some((path) => file === path || file.startsWith(path)));
 const violations = [];
 for (const file of files) {
   const content = readText(file);
