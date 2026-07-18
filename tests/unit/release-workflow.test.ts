@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const dockerIgnore = readFileSync(new URL('../../.dockerignore', import.meta.url), 'utf8');
+const deploymentWorkflow = readFileSync(
+  new URL('../../.github/workflows/deployment-evidence.yml', import.meta.url),
+  'utf8',
+);
 const authResidueCheck = readFileSync(
   new URL('../../scripts/check-auth-residue.mjs', import.meta.url),
   'utf8',
@@ -27,11 +31,23 @@ describe('production release workflow', () => {
   it('includes the guarded workflow in the Docker portability build', () => {
     expect(dockerIgnore).toContain('!.github/workflows/');
     expect(dockerIgnore).toContain('!.github/workflows/ci.yml');
+    expect(dockerIgnore).toContain('!.github/workflows/deployment-evidence.yml');
+  });
+
+  it('fails production evidence when hosted authentication residue is present', () => {
+    expect(deploymentWorkflow).toContain(
+      'Verify hosted authentication residue and signed-out protection',
+    );
+    expect(deploymentWorkflow).toContain('npm run hosted:check');
+    expect(deploymentWorkflow).toContain('artifacts/hosted-auth-residue.json');
+    expect(deploymentWorkflow).toContain('DEPLOYMENT_SHA: ${{ github.event.deployment.sha }}');
   });
 
   it('limits bundle-policy residue exclusions to exact verification files', () => {
     expect(authResidueCheck).toContain("'scripts/check-bundle.mjs'");
+    expect(authResidueCheck).toContain("'scripts/check-hosted-auth-residue.mjs'");
     expect(authResidueCheck).toContain("'tests/unit/bundle-policy.test.ts'");
+    expect(authResidueCheck).toContain("'tests/unit/hosted-deployment-policy.test.ts'");
     expect(authResidueCheck).not.toContain("'scripts/'");
     expect(authResidueCheck).not.toContain("'tests/'");
   });

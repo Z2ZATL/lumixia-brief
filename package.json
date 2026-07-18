@@ -24,6 +24,7 @@
     "setup:local": "node scripts/setup-local.mjs",
     "build": "tsc -b && vite build",
     "bundle:check": "node scripts/check-bundle.mjs",
+    "hosted:check": "node scripts/check-hosted-auth-residue.mjs",
     "preview": "vite preview",
     "start": "tsx --env-file-if-exists=.env.local server/dev.ts",
     "start:test:api": "tsx server/dev.ts",

@@ -1,37 +1,19 @@
 import { gzipSync } from 'node:zlib';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { findForbiddenRuntimeResidues } from './auth-residue-policy.mjs';
 
 const assetDirectory = 'dist/assets';
 const files = (await readdir(assetDirectory)).filter((file) => file.endsWith('.js'));
 const assets = [];
-const forbiddenResiduePatterns = [
-  {
-    label: 'legacy Clerk runtime configuration',
-    pattern: /(?:VITE_)?CLERK_[A-Z_]+|@clerk\/|clerkMiddleware|clerk\.accounts\.dev|clerk\.com/i,
-  },
-  {
-    label: 'legacy authentication bypass',
-    pattern: /LOCAL_AUTH_BYPASS|x-test-user|x-test-aal/i,
-  },
-];
 const forbiddenResidues = [];
 for (const file of files) {
   const content = await readFile(join(assetDirectory, file));
   assets.push({ file, rawBytes: content.byteLength, gzipBytes: gzipSync(content).byteLength });
-  const source = content.toString('utf8');
-  for (const policy of forbiddenResiduePatterns) {
-    if (policy.pattern.test(source)) {
-      forbiddenResidues.push({ file, policy: policy.label });
-    }
-  }
+  forbiddenResidues.push(...findForbiddenRuntimeResidues(file, content.toString('utf8')));
 }
 const html = await readFile('dist/index.html', 'utf8');
-for (const policy of forbiddenResiduePatterns) {
-  if (policy.pattern.test(html)) {
-    forbiddenResidues.push({ file: 'index.html', policy: policy.label });
-  }
-}
+forbiddenResidues.push(...findForbiddenRuntimeResidues('index.html', html));
 const entryFiles = [...html.matchAll(/<script[^>]+src="\/assets\/([^"]+\.js)"/g)].map(
   (match) => match[1],
 );
