@@ -3,9 +3,9 @@
 - Date: 2026-07-18
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Model observed in the real local regression smoke: `gpt-5.6-sol`
-- Commit: pending
-- PR: pending
-- CI: pending
+- Core commit: `4f7b077`
+- PR: [#36](https://github.com/Z2ZATL/lumixia-brief/pull/36)
+- CI: [PR #36 checks](https://github.com/Z2ZATL/lumixia-brief/pull/36/checks)
 
 ## Sanitized owner instruction
 
