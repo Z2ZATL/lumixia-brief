@@ -1,16 +1,19 @@
 # BL-017 — Legacy authentication decommission
 
-- Status: in progress — runtime decommission is proven; external provider cleanup and Supabase-auth-only release remain
+- Status: runtime complete — inactive Clerk application deletion remains with Clerk support; live model smoke remains intentionally disabled
 - Date started: 2026-07-18
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled throughout this milestone)
-- Branch: `agent/clerk-decommission`
+- Implementation branch: `agent/clerk-decommission`
+- Release-evidence branch: `agent/bl017-release-evidence`
 - Preparation commit: `56db2ca`
-- Draft PR: [#31](https://github.com/Z2ZATL/lumixia-brief/pull/31)
+- Merged PR: [#31](https://github.com/Z2ZATL/lumixia-brief/pull/31)
 - Hosted residue implementation commit: `8dc5e7b`
 - External-decommission evidence commit: `5696dd5`
-- Current CI: [Required CI passed](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29638444036)
+- Merged main SHA: `0d45cf38ed3395583972bfcfb5b6cba542cfc761`
+- Main CI and production migration: [passed on rerun](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29639186770)
+- Production deployment evidence: [passed](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29639349682)
 
 ## Sanitized owner instruction
 
@@ -52,33 +55,41 @@ The following inventory and changes were captured without reading or recording s
 - Deployment evidence now runs the same hosted residue policy against the deployed URL. The reusable policy rejects legacy packages, environment keys, provider domains, browser bypass headers, credential-bearing CORS, and source-map exposure.
 - The regression suite now contains 101 unit/API tests and 19 UI tests. Backend coverage is 95.13% lines and 84.31% branches; formatting, lint, typecheck, Knip, CSS, source residue, build, bundle, audits, migrations/RLS, Playwright, container/SBOM, and secret scan gates passed.
 
-## Remaining decommission and release sequence
+## Supabase-auth-only production release
 
-The owner authorized proceeding before the original soak boundary. The remaining steps preserve the same least-destructive scope:
+- PR #31 was rebased into `main` with linear history. Required CI, the Vercel Preview, and the four-asset hosted residue gate were green before merge.
+- The first Production approval failed before checkout or database access because GitHub had snapshotted `PRODUCTION_RELEASE_ENABLED=false` when the original workflow started. No migration ran in that attempt. Only the failed jobs were rerun after the variable was enabled before rerun dispatch.
+- The approved rerun verified the exact main SHA and applied the forward-only Production migration set successfully. Vercel then promoted that exact SHA through the configured Deployment Checks.
+- The automated Production evidence workflow verified landing, health, readiness, exact deployed SHA, signed-out protection, four hosted JavaScript assets, absence of legacy authentication residue, and absence of public source maps.
+- Manual post-deploy smoke verified native Supabase AAL2, both TOTP factors, Projects, the existing Notion connection, and the disabled-model interview UX. The answer submission control was disabled without making an OpenAI request. Security, Projects, Connections, and Interview produced zero browser log entries.
+- Vercel reported no error-level events and no HTTP `500` events in the post-deploy window. `PRODUCTION_RELEASE_ENABLED` was returned to `false` immediately after the exact SHA and automated evidence passed.
+- The verified Supabase-auth-only deployment is now the known-good rollback target. The previous native-auth deployment remains available as deployment history; no database rollback is required or permitted.
+
+## External-only remainder
+
+The application runtime, provider trust, OAuth, DNS delegation, deployment, and verification work are complete. One vendor-account cleanup remains outside the runtime:
 
 1. Track the Clerk support deletion request to completion. Do not delete the Clerk workspace or unrelated applications.
-2. Merge the Supabase-auth-only residue gate, deploy from exact `main`, and repeat health/readiness, signed-out denial, AAL2, project ownership, Notion, hosted assets, sanitized logs, and browser-console checks.
-3. Replace the rollback target with the verified Supabase-auth-only deployment and close this ledger with commit, PR, CI, and post-deletion evidence.
 
 ## Acceptance checklist
 
 - [x] Native Supabase Google OAuth is active in Production.
 - [x] Primary and Backup TOTP factors are verified.
-- [x] Production health and readiness are green on the unchanged safe deployment.
+- [x] Production health and readiness are green on the exact Supabase-auth-only main SHA.
 - [x] Obsolete non-rollback Vercel variables are removed without redeploying.
 - [x] All legacy Vercel variables are removed while the known-good deployment snapshot and external provider trust remain available for rollback.
-- [x] Production release and migration promotion remain disabled.
+- [x] Production release and migration promotion were gated, approved for one exact SHA, and returned to disabled.
 - [x] Built-asset authentication residue is covered by a fail-closed regression gate.
-- [ ] Conservative 24-hour soak has completed (owner explicitly authorized early decommissioning; retained only as historical evidence).
+- [x] The owner explicitly authorized early decommissioning in place of the original conservative 24-hour soak.
 - [x] Native-auth and Notion smoke passed after Supabase Clerk trust removal.
 - [x] Clerk Vercel variables and duplicate legacy Supabase variables are removed.
 - [x] Supabase Clerk third-party Auth trust is removed from staging and Production.
 - [x] Clerk-only Google OAuth credentials are deleted without changing Supabase or unrelated clients.
 - [ ] Lumixia Brief Clerk application deletion is confirmed by Clerk support.
 - [x] Clerk frontend/delegation Cloudflare records are removed without touching mail or application DNS.
-- [ ] Supabase-auth-only redeploy and post-deletion clean gate have passed.
+- [x] Supabase-auth-only redeploy and post-deletion clean gate passed on exact main SHA `0d45cf3`.
 - [ ] Live GPT-5.6 Responses API contract smoke has passed with synthetic data.
 
 ## Explicit remaining boundary
 
-No live OpenAI request was made. `MODEL_PROVIDER_MODE=disabled` remains intentional. After this legacy-provider milestone is completed, the only backend provider gate expected to remain is the paid live GPT-5.6 Responses API contract smoke test with synthetic data.
+No live OpenAI request was made. `MODEL_PROVIDER_MODE=disabled` remains intentional. The application runtime now has one deliberate functional gate: the paid live GPT-5.6 Responses API contract smoke test with synthetic data. Clerk support still owes confirmation that the inactive external application and its instances were deleted; that application has no Vercel variable, Supabase trust, OAuth client, frontend DNS delegation, source dependency, bundle residue, or Production runtime path.

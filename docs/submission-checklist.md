@@ -24,7 +24,7 @@
 - [x] Sentry project configured with Replay off and scrubbers verified
 - [x] UptimeRobot checks `/`, `/api/health`, `/api/ready` every five minutes
 - [x] Production rollback rehearsal recorded
-- [ ] `PRODUCTION_RELEASE_ENABLED=true` only after the above
+- [x] Release gate enabled only for the approved exact SHA, then returned to `PRODUCTION_RELEASE_ENABLED=false`
 
 ## Repository and permissions
 
