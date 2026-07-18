@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const dockerIgnore = readFileSync(new URL('../../.dockerignore', import.meta.url), 'utf8');
+const authResidueCheck = readFileSync(
+  new URL('../../scripts/check-auth-residue.mjs', import.meta.url),
+  'utf8',
+);
 
 describe('production release workflow', () => {
   it('keeps every main deployment pending on the protected production environment', () => {
@@ -23,5 +27,12 @@ describe('production release workflow', () => {
   it('includes the guarded workflow in the Docker portability build', () => {
     expect(dockerIgnore).toContain('!.github/workflows/');
     expect(dockerIgnore).toContain('!.github/workflows/ci.yml');
+  });
+
+  it('limits bundle-policy residue exclusions to exact verification files', () => {
+    expect(authResidueCheck).toContain("'scripts/check-bundle.mjs'");
+    expect(authResidueCheck).toContain("'tests/unit/bundle-policy.test.ts'");
+    expect(authResidueCheck).not.toContain("'scripts/'");
+    expect(authResidueCheck).not.toContain("'tests/'");
   });
 });
