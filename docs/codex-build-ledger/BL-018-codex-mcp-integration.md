@@ -1,14 +1,14 @@
 # BL-018 — Owner-operated Codex MCP integration
 
-- Status: hosted OAuth enabled; AAL transfer defect fixed in code; migration, redeploy, and live Codex smoke pending
+- Status: staging OAuth/Codex live smoke passed; production OAuth and migration ready; production code promotion pending
 - Date started: 2026-07-18
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled throughout this milestone)
 - Implementation branch: `agent/codex-mcp-integration`
-- Implementation commit: `eca08fe`
+- Implementation commits: `eca08fe` through `275e246`
 - Pull request: [Draft PR #33](https://github.com/Z2ZATL/lumixia-brief/pull/33)
-- CI: [run 29642866411](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29642866411) — Required CI passed
+- CI: [run 29646740281](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29646740281) — every required job passed
 
 ## Sanitized owner instruction
 
@@ -29,6 +29,7 @@ Add a Lumixia Brief connection for Codex so the owner can run the adaptive inter
 - A live Codex initialization exposed that Supabase OAuth Server issues its separate OAuth session as `aal1` even when consent is approved from an AAL2 browser session. The earlier bearer challenge mislabeled this as a scope problem.
 - Added a time-bounded owner/client grant that can only be created from direct AAL2 consent. Express and RLS verify it on every Codex request without rewriting the OAuth token's real `aal` claim.
 - Added database-level boundaries that allow Codex draft/interview work while independently blocking approval, deletion, and Notion access.
+- Fixed the hosted grant verifier to forward the already-verified bearer token to its Supabase RPC client. The earlier implementation validated the JWT correctly but then called the grant RPC as anonymous.
 
 ## Regression evidence
 
@@ -40,6 +41,17 @@ Add a Lumixia Brief connection for Codex so the owner can run the adaptive inter
 - Playwright passed 8 desktop/mobile product-path checks without browser-console failures.
 - Production build, bundle ceiling, all/production dependency audits, and Linux/amd64 Docker build passed; both audits reported zero vulnerabilities.
 - The active local Supabase containers were left unchanged. The fresh Supabase Auth/RLS integration gate remains assigned to GitHub CI for the new forward-only grant migration.
+- GitHub run 29646740281 passed quality, coverage, Auth/RLS migration, Playwright console audit, Linux/amd64 container, SBOM, critical scan, secret scan, and Required CI jobs.
+
+## Sanitized hosted evidence
+
+- Staging and Production Supabase OAuth Server are enabled with Dynamic Client Registration, the exact `/oauth/consent` authorization path, and ES256 JWKS on the Free plan.
+- Forward-only migration `202607180001` is applied to Staging and Production; Supabase CLI was relinked to Staging after the Production migration.
+- Staging `/api/health` and `/api/ready` returned `200`; the deployed health SHA matched `275e246`.
+- A fresh OAuth token had the expected issuer, authenticated audience/role, `openid`, OAuth client identifier, valid expiry, and its real `aal1` value. The separate owner/client grant was verified without altering that claim.
+- MCP `initialize` returned `200`, server name `lumixia-brief`, and a tools capability.
+- A real Codex CLI session using the owner's ChatGPT plan detected `list_projects` and returned the synthetic marker `LUMIXIA_MCP_SMOKE_OK`. The instruction prohibited tool calls, so no project list, prompt, answer, or brief content was read.
+- `OPENAI_API_KEY` was absent from this path and no paid OpenAI API request was made.
 
 ## Privacy boundary
 
@@ -50,9 +62,10 @@ This entry records only sanitized implementation and verification metadata. It e
 - [x] Enable Supabase OAuth Server and Dynamic Client Registration without a paid upgrade.
 - [x] Confirm the exact `/oauth/consent` path and asymmetric signing.
 - [x] Deploy the earlier PR SHA and verify protected-resource discovery plus the unauthenticated challenge.
-- [ ] Apply the AAL grant migration and deploy the corrected exact PR SHA.
-- [ ] Connect Codex interactively, approve consent after Google/TOTP, and run the synthetic smoke path.
-- [ ] Confirm sanitized Production logs and revoke the synthetic grant if it is no longer needed.
-- [ ] Record commit, PR, CI, deployment, and live evidence links above.
+- [x] Apply the AAL grant migration to Staging and Production and deploy the corrected exact PR SHA to Staging.
+- [x] Connect Codex interactively after Google/TOTP and run a no-tool-call discovery smoke.
+- [x] Confirm sanitized Staging runtime evidence without exposing identity, OAuth, or project data.
+- [ ] Merge the reviewed PR and promote the exact main SHA to Production.
+- [ ] Repeat health, readiness, OAuth discovery, and no-tool-call Codex smoke against Production.
 
 The paid GPT-5.6 Responses API contract smoke remains intentionally separate and disabled.
