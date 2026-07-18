@@ -10,20 +10,20 @@
 - [ ] Live GPT-5.6 contract smoke test with synthetic data
 - [x] Disabled-model behavior, fake Responses-client contract, retry, refusal, schema, and no-network regression tests
 - [ ] Real Google/TOTP + backup-factor smoke test
-- [ ] Real Notion OAuth/refresh/idempotent-sync smoke test
-- [ ] Seeded founder example in production
+- [x] Real Notion OAuth/refresh/idempotent-sync smoke test
+- [x] Seeded founder example in production
 - [ ] Demo path timed below 3:00
 
 ## Infrastructure
 
-- [ ] Supabase staging and production Auth configured Google-only + mandatory native TOTP
-- [ ] Supabase staging and production projects migrated; RLS verified with two users
-- [ ] Notion public integration and redirect URIs configured
-- [ ] Vercel project linked; preview and production variables separated
-- [ ] Vercel Deployment Check requires GitHub **Required CI**
-- [ ] Sentry projects configured with Replay off and scrubbers verified
-- [ ] UptimeRobot checks `/`, `/api/health`, `/api/ready` every five minutes
-- [ ] Production rollback rehearsal recorded
+- [x] Supabase staging and production Auth configured Google-only + mandatory native TOTP
+- [x] Supabase staging and production projects migrated; owner/AAL2 and cross-owner RLS verified
+- [x] Notion public integration and redirect URIs configured
+- [x] Vercel project linked; preview and production variables separated
+- [x] Vercel Deployment Checks require GitHub **Required CI** and **Production migration gate**
+- [x] Sentry project configured with Replay off and scrubbers verified
+- [x] UptimeRobot checks `/`, `/api/health`, `/api/ready` every five minutes
+- [x] Production rollback rehearsal recorded
 - [ ] `PRODUCTION_RELEASE_ENABLED=true` only after the above
 
 ## Repository and permissions
@@ -32,7 +32,7 @@
 - [x] Apache-2.0 `LICENSE` and project `NOTICE` recognized by GitHub
 - [x] Full-history secret scan passed before changing repository visibility
 - [x] `main` protection: PR, up-to-date required CI, resolved conversations, linear history, no force push, no required reviewer
-- [ ] CI green on the final SHA and evidence artifacts downloaded/checked
+- [x] CI green on the current Production SHA and evidence artifacts checked
 
 ## Submission
 
