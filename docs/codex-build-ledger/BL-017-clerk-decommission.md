@@ -6,7 +6,9 @@
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled throughout this milestone)
 - Branch: `agent/clerk-decommission`
-- Commit / PR / CI: pending
+- Preparation commit: `56db2ca`
+- Draft PR: [#31](https://github.com/Z2ZATL/lumixia-brief/pull/31)
+- CI: pending
 
 ## Sanitized owner instruction
 
