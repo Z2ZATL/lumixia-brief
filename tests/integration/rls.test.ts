@@ -110,13 +110,13 @@ describe('Supabase owner + MFA RLS', () => {
       }),
     ).rejects.toThrow();
 
-    await expect(
-      sql.begin(async (tx) => {
-        await tx.unsafe('set local role authenticated');
-        await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: codexOwnerId, aal: 'aal1', role: 'authenticated', client_id: codexClientId, scope: 'openid' })}, true)`;
-        await tx`delete from public.projects where id = ${codexProjectId}`;
-      }),
-    ).rejects.toThrow();
+    await sql.begin(async (tx) => {
+      await tx.unsafe('set local role authenticated');
+      await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: codexOwnerId, aal: 'aal1', role: 'authenticated', client_id: codexClientId, scope: 'openid' })}, true)`;
+      const deleted =
+        await tx`delete from public.projects where id = ${codexProjectId} returning id`;
+      expect(deleted).toHaveLength(0);
+    });
 
     await sql.begin(async (tx) => {
       await tx.unsafe('set local role authenticated');
