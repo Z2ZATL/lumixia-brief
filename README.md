@@ -98,7 +98,7 @@ Vercel Preview derives its exact origin from the stable `VERCEL_BRANCH_URL` syst
 
 Lumixia Brief also exposes an owner-operated MCP connection at `https://brief.z2zs.space/api/mcp`. It lets the signed-in owner use their own Codex session to conduct the adaptive interview and draft the brief. This path does not instantiate the OpenAI API client, does not use `OPENAI_API_KEY`, and does not create OpenAI API charges for Lumixia Brief. The owner's Codex plan limits still apply.
 
-The connection uses Supabase OAuth 2.1 consent, Google sign-in, verified TOTP/AAL2, owner RLS, and per-write approval in Codex. A normal browser access token is rejected because MCP access must also include an OAuth client identifier. The server exposes five narrow tools:
+The connection uses Supabase OAuth 2.1 consent, Google sign-in, verified TOTP, owner RLS, and per-write approval in Codex. Supabase creates a separate OAuth session at AAL1, so Lumixia records a 30-day client-specific grant only when the owner approves consent from a direct AAL2 browser session. MCP access then requires the OAuth `client_id`, `openid`, and that active grant; it is rechecked by Express and RLS on every request. A normal browser access token and an ungranted OAuth token are both rejected. The server exposes five narrow tools:
 
 - `list_projects`
 - `get_project_context`
@@ -166,12 +166,12 @@ Notion uses per-user public OAuth. Access and refresh tokens are encrypted at re
 
 - Supabase Auth is configured for Google-only sign-in; all product routes require native TOTP/AAL2. Users can enroll a second TOTP factor on another device for recovery.
 - The Express layer verifies authentication, second-factor claims, input schemas, exact origins, body limits, ownership, request rate, and timeouts.
-- Supabase forces RLS on every user table. Policies require both JWT `sub = owner_id` and an AAL2/TOTP claim.
+- Supabase forces RLS on every user table. Policies require JWT `sub = owner_id` plus either a direct AAL2 session or an active client-specific Codex grant created by direct AAL2 consent. Codex grants expire after 30 days and never contain tokens or project content.
 - Data remains until the owner deletes the project. Project deletion cascades answer claims and sync records.
 - Logs contain only request ID, route, method, status, duration, anonymous user hash, and deployment SHA.
 - Request bodies, authorization/cookie headers, answers, briefs, emails, OpenAI/Notion payloads, and user identifiers are removed from Sentry. Session Replay is disabled.
 - Secrets belong only in `.env.local`, GitHub encrypted secrets, or Vercel encrypted variables. `.env.example` contains names only.
-- Codex MCP access is owner-scoped and stateless. Tool responses omit owner IDs and Notion identifiers, and prompts, answers, briefs, OAuth tokens, and TOTP values remain excluded from logs and Build Ledger evidence.
+- Codex MCP access is owner-scoped and stateless. OAuth clients can create and revise drafts but database policy independently blocks approval, project deletion, and all Notion tables. Tool responses omit owner IDs and Notion identifiers, and prompts, answers, briefs, OAuth tokens, and TOTP values remain excluded from logs and Build Ledger evidence.
 
 See [docs/security/privacy-model.md](docs/security/privacy-model.md) for the threat boundaries and operator checklist.
 

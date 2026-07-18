@@ -3,6 +3,7 @@ import { getSupabaseBrowserClient } from '../auth/client';
 import { useI18n } from '../i18n';
 
 interface ConsentDetails {
+  clientId: string;
   clientName: string;
   scopes: string[];
   redirectUri: string;
@@ -64,7 +65,14 @@ function useConsentFlow(t: Translate) {
     setBusy(true);
     setError('');
     try {
-      const oauth = getSupabaseBrowserClient().auth.oauth;
+      const client = getSupabaseBrowserClient();
+      const oauth = client.auth.oauth;
+      if (approved && details) {
+        const grant = await client.rpc('authorize_codex_connection', {
+          p_client_id: details.clientId,
+        });
+        if (grant.error || grant.data !== true) throw new Error('MCP_GRANT_FAILED');
+      }
       const response = approved
         ? await oauth.approveAuthorization(authorizationId, { skipBrowserRedirect: true })
         : await oauth.denyAuthorization(authorizationId, { skipBrowserRedirect: true });
@@ -129,6 +137,7 @@ async function loadConsent(
   if (response.error || !response.data) throw new Error('OAUTH_DETAILS_FAILED');
   if ('redirect_url' in response.data) return { redirectUrl: response.data.redirect_url };
   return {
+    clientId: response.data.client.id,
     clientName: response.data.client.name,
     scopes: response.data.scope.split(' ').filter(Boolean),
     redirectUri: response.data.redirect_uri,

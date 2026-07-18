@@ -10,9 +10,9 @@ import {
 } from '../../server/security/identity.js';
 import { sanitizeTelemetryText } from '../../shared/telemetry.js';
 
-const mocks = vi.hoisted(() => ({ getClaims: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getClaims: vi.fn(), rpc: vi.fn() }));
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(() => ({ auth: { getClaims: mocks.getClaims } })),
+  createClient: vi.fn(() => ({ auth: { getClaims: mocks.getClaims }, rpc: mocks.rpc })),
 }));
 
 const claims = {
@@ -33,6 +33,7 @@ describe('security primitives', () => {
       data: { claims, header: { alg: 'ES256' }, signature: new Uint8Array() },
       error: null,
     });
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
   });
 
   it('encrypts Notion tokens with authenticated AES-256-GCM', () => {
@@ -77,12 +78,44 @@ describe('security primitives', () => {
       },
       error: null,
     });
-    await expect(verifier.verify('oauth-token', new AbortController().signal)).resolves.toEqual({
+    await expectHttpError(
+      verifier.verify('oauth-browser-token', new AbortController().signal),
+      403,
+      'MCP_TOKEN_NOT_ALLOWED',
+    );
+  });
+
+  it('accepts an AAL1 OAuth token only for MCP after an active AAL2 consent grant', async () => {
+    const verifier = new SupabaseIdentityVerifier('https://example.supabase.co', 'publishable-key');
+    mocks.getClaims.mockResolvedValue({
+      data: {
+        claims: { ...claims, aal: 'aal1', client_id: 'codex-client_opaque.1' },
+      },
+      error: null,
+    });
+    await expect(
+      verifier.verify('oauth-token', new AbortController().signal, 'mcp'),
+    ).resolves.toEqual({
       userId: claims.sub,
       accessToken: 'oauth-token',
       aal: 'aal2',
       clientId: 'codex-client_opaque.1',
     });
+    expect(mocks.rpc).toHaveBeenCalledWith('verify_codex_oauth_grant');
+
+    mocks.rpc.mockResolvedValueOnce({ data: false, error: null });
+    await expectHttpError(
+      verifier.verify('oauth-token', new AbortController().signal, 'mcp'),
+      403,
+      'MCP_MFA_GRANT_REQUIRED',
+    );
+
+    mocks.getClaims.mockResolvedValueOnce({ data: { claims }, error: null });
+    await expectHttpError(
+      verifier.verify('browser-token', new AbortController().signal, 'mcp'),
+      401,
+      'MCP_OAUTH_REQUIRED',
+    );
   });
 
   it('rejects wrong issuer, audience, role, subject, and expired sessions', async () => {

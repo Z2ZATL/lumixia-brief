@@ -51,7 +51,7 @@ export function createLumixiaMcpServer(identity: RequestIdentity, tools: CodexTo
 function registerProjectTools(server: McpServer, identity: RequestIdentity, tools: CodexTools) {
   server.registerTool(
     'list_projects',
-    descriptor('List Lumixia projects', 'List the current user’s project summaries.', {}, readOnly),
+    descriptor('List Lumixia projects', "List the current user's project summaries.", {}, readOnly),
     () => safeCall(async () => (await tools.projects.list(identity)).map(projectSummary)),
   );
   server.registerTool(
