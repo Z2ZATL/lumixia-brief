@@ -8,7 +8,7 @@
 - Implementation branch: `agent/codex-mcp-integration`
 - Implementation commit: `eca08fe`
 - Pull request: [Draft PR #33](https://github.com/Z2ZATL/lumixia-brief/pull/33)
-- CI: [run 29642833694](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29642833694) — in progress
+- CI: [run 29642866411](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29642866411) — Required CI passed
 
 ## Sanitized owner instruction
 
