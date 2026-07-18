@@ -3,9 +3,9 @@
 - Date: 2026-07-18
 - Codex Session: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Model observed in the real local smoke: `gpt-5.6-sol`
-- Commit: pending
-- PR: pending
-- CI: pending
+- Core commit: `367e6c4039c1c829045e1f8ed21a78106bb213fb`
+- PR: [#35](https://github.com/Z2ZATL/lumixia-brief/pull/35)
+- CI: [Required CI run 29650728441](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29650728441)
 
 ## Sanitized owner instruction
 
