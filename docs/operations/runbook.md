@@ -42,10 +42,10 @@ Never point preview at production Supabase or reuse production token-encryption 
 
 1. Confirm `OPENAI_API_KEY` is absent and Production remains `MODEL_PROVIDER_MODE=disabled`.
 2. Start `npm run codex:bridge`; it must bind only to `127.0.0.1:8790` and print no token or content.
-3. In Lumixia **Connections**, pair **Codex demo bridge** and allow the browser's local-network permission if prompted.
+3. In Lumixia **Connections**, pair **Codex demo bridge**, allow the popup, and keep the loopback relay window open for the whole rehearsal.
 4. Submit one synthetic website answer and verify the green model indicator, eight dimension assessments, and a new question.
 5. Complete at least five synthetic turns, generate the structured brief, approve it in the direct AAL2 browser session, and sync to Notion.
-6. Confirm browser console/network has no unexpected warning, error, failed request, or HTTP status at least 400.
+6. Confirm the production page makes no direct request to `127.0.0.1`; relay traffic stays inside the loopback popup. Browser console/network must have no unexpected warning, error, failed request, or HTTP status at least 400.
 7. Record only model identifier, pass/fail, duration class, deployment SHA, and sanitized test counts. Never record the answer, prompt, bridge token, analysis, or brief.
 
 ## Synthetic founder example

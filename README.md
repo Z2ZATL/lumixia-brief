@@ -78,7 +78,7 @@ For the owner-operated Codex demo, start a second terminal before opening **Conn
 npm run codex:bridge
 ```
 
-The worker binds only to `127.0.0.1:8790`, uses the Codex login already stored on this computer, and never prints or persists a pairing token outside browser `sessionStorage`. Click **Connect local Codex** in Lumixia; Chrome may ask once for local-network permission. The token is cleared on sign-out.
+The worker binds only to `127.0.0.1:8790` and uses the Codex login already stored on this computer. Click **Connect local Codex** in Lumixia and keep the small loopback relay window open during the demo. The pairing token exists only inside that local window's memory: it is never returned to the production page, stored in browser storage, printed, or persisted. Sign-out closes the relay.
 
 ## Environment variables
 
@@ -136,11 +136,11 @@ Then run `codex mcp login lumixia_brief` if the command-line client has not open
 The Build Week video uses a second owner-operated path so the user can answer inside the website:
 
 ```text
-Website answer → 127.0.0.1 Codex bridge → structured analysis
+Website answer → open 127.0.0.1 relay window → Codex bridge → structured analysis
 → authenticated Lumixia API → server confidence/stop rules → next website question
 ```
 
-The bridge runs `codex exec` ephemerally in an empty temporary directory with ignored user configuration, no MCP servers, `read-only` sandboxing, approval policy `never`, and strict JSON Schema output. The installed CLI is pinned as a development dependency. Only the exact Lumixia origins can call it, a memory-only pairing token is required, one operation runs at a time, and response bodies are never logged. The website posts the validated result through its existing AAL2 session; local Codex never receives the Supabase token and cannot approve or sync to Notion.
+The bridge runs `codex exec` ephemerally in an empty temporary directory with ignored user configuration, no MCP servers, `read-only` sandboxing, approval policy `never`, and strict JSON Schema output. The installed CLI is pinned as a development dependency. An origin-bound loopback popup holds the memory-only pairing token and relays exact-origin `postMessage` requests to same-origin worker endpoints. This avoids an HTTPS page making a direct HTTP loopback fetch. One operation runs at a time, and response bodies are never logged. The website posts the validated result through its existing AAL2 session; local Codex never receives the Supabase token and cannot approve or sync to Notion.
 
 This mode uses the owner's ChatGPT/Codex plan allowance, not an OpenAI Platform API key. It is intentionally a video-demo capability: the owner's computer and worker must stay online, and it must not be exposed as a shared public inference service.
 
@@ -274,7 +274,7 @@ Codex scaffolded and implemented the React/Express app, contracts, state machine
 - **RLS returns no project:** confirm the verified Supabase token `sub` matches `owner_id` and contains `aal=aal2`.
 - **Answer shows failed:** the answer is already saved. Use Retry; do not submit a new client answer ID.
 - **Interview asks to connect local Codex:** run `npm run codex:bridge`, open Connections, click **Connect local Codex**, and allow Chrome's local-network prompt.
-- **Local Codex fails after pairing:** keep the answer in place, confirm the worker terminal is still ready, disconnect/reconnect the bridge, and retry the same turn.
+- **Local Codex fails after pairing:** keep the answer in place, confirm the worker terminal and local relay window are both still open, disconnect/reconnect the bridge, and retry the same turn.
 - **Interview returns `MODEL_NOT_CONFIGURED`:** neither the local bridge nor paid live provider is available; no OpenAI API request was sent.
 - **Codex cannot discover OAuth:** verify `/.well-known/oauth-protected-resource/api/mcp`, Supabase OAuth Server/Dynamic Client Registration, the exact `/oauth/consent` authorization path, and asymmetric JWT signing.
 - **Notion shows 401:** reconnect only if automatic refresh reports `NOTION_RECONNECT_REQUIRED`.

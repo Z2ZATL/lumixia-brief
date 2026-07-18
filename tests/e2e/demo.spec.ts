@@ -103,6 +103,7 @@ test('Notion authorization preserves Settings and completes through a separate t
 }) => {
   await page.goto('/settings');
   const disconnect = page.getByRole('button', { name: 'Disconnect' });
+  await expect(page.getByRole('button', { name: /Connect Notion|Disconnect/ })).toBeVisible();
   if (await disconnect.isVisible()) {
     await disconnect.click();
     await expect(page.getByRole('button', { name: /Connect Notion/ })).toBeVisible();

@@ -245,17 +245,17 @@ const messages = {
     noApiCharge: 'No OpenAI API charge',
     codexBridgeTitle: 'Codex demo bridge',
     codexBridgeBody:
-      'Process website interview answers with Codex running only on this computer. Start npm run codex:bridge, then connect here.',
+      'Process website interview answers with Codex running only on this computer. Start npm run codex:bridge, connect here, and keep the local relay window open.',
     codexBridgeConnect: 'Connect local Codex',
     codexBridgeConnected: 'Local Codex ready',
     codexBridgeUnavailable: 'Local bridge not connected',
     codexBridgeDisabled: 'Local bridge endpoints are disabled in this deployment',
     codexBridgePairFailed:
-      'Could not connect to the local Codex bridge. Start the worker, allow local network access, and try again.',
+      'Could not open the local Codex relay. Start the worker, allow the popup, and try again.',
     codexBridgeProcessingFailed:
       'Local Codex could not complete this step. Keep the answer and try again.',
     codexBridgePrivacy:
-      'Interview context goes directly from this browser to Codex on 127.0.0.1 and is never sent to an OpenAI API key.',
+      'Interview context passes through the open 127.0.0.1 relay to Codex on this computer and is never sent to an OpenAI API key.',
     localCodexReady: 'Local Codex is ready for your next answer',
     localCodexAnalyzing: 'Local Codex is checking alignment and choosing the next question',
     localCodexDrafting: 'Local Codex is drafting the structured brief',
@@ -502,17 +502,17 @@ const messages = {
     noApiCharge: 'ไม่เสียค่า OpenAI API',
     codexBridgeTitle: 'Codex demo bridge',
     codexBridgeBody:
-      'ประมวลผลคำตอบจากหน้าเว็บด้วย Codex ที่ทำงานอยู่บนเครื่องนี้เท่านั้น เปิด npm run codex:bridge แล้วเชื่อมต่อที่นี่',
+      'ประมวลผลคำตอบจากหน้าเว็บด้วย Codex ที่ทำงานอยู่บนเครื่องนี้เท่านั้น เปิด npm run codex:bridge เชื่อมต่อที่นี่ และเปิดหน้าต่าง local relay ค้างไว้',
     codexBridgeConnect: 'เชื่อม Codex บนเครื่อง',
     codexBridgeConnected: 'Codex บนเครื่องพร้อมแล้ว',
     codexBridgeUnavailable: 'ยังไม่ได้เชื่อม local bridge',
     codexBridgeDisabled: 'deployment นี้ยังไม่ได้เปิด endpoint สำหรับ local bridge',
     codexBridgePairFailed:
-      'เชื่อมต่อ Codex bridge ไม่สำเร็จ กรุณาเปิด Worker อนุญาต Local network access แล้วลองใหม่',
+      'เปิด local Codex relay ไม่สำเร็จ กรุณาเปิด Worker อนุญาตหน้าต่างป๊อปอัป แล้วลองใหม่',
     codexBridgeProcessingFailed:
       'Codex บนเครื่องประมวลผลขั้นตอนนี้ไม่สำเร็จ ระบบยังเก็บคำตอบไว้ให้ลองอีกครั้ง',
     codexBridgePrivacy:
-      'บริบทการสัมภาษณ์ส่งตรงจากเบราว์เซอร์ไปยัง Codex ที่ 127.0.0.1 และไม่ใช้ OpenAI API key',
+      'บริบทการสัมภาษณ์ส่งผ่านหน้าต่าง relay ที่ 127.0.0.1 ไปยัง Codex บนเครื่องนี้ และไม่ใช้ OpenAI API key',
     localCodexReady: 'Codex บนเครื่องพร้อมประมวลผลคำตอบถัดไป',
     localCodexAnalyzing: 'Codex บนเครื่องกำลังตรวจความชัดเจนและเลือกคำถามถัดไป',
     localCodexDrafting: 'Codex บนเครื่องกำลังสร้างบรีฟแบบมีโครงสร้าง',

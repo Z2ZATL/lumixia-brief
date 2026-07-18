@@ -20,7 +20,7 @@
   "scripts": {
     "dev": "concurrently -n web,api -c cyan,magenta \"vite\" \"npm:dev:api\"",
     "dev:web": "vite",
-    "dev:api": "tsx --env-file-if-exists=.env.local watch server/dev.ts",
+    "dev:api": "tsx watch --env-file-if-exists=.env.local server/dev.ts",
     "setup:local": "node scripts/setup-local.mjs",
     "build": "tsc -b && vite build",
     "bundle:check": "node scripts/check-bundle.mjs",

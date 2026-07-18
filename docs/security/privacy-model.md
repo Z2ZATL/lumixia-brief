@@ -21,8 +21,8 @@
 ## Local Codex bridge boundary
 
 - The worker binds only to loopback and accepts exact allowlisted Lumixia origins.
-- Pairing uses an in-memory random token delivered with origin-bound `postMessage`; it is never placed in a URL, terminal log, repository, database, or monitoring event.
-- Browser storage is session-only and is cleared on sign-out.
+- Pairing uses an in-memory random token that remains inside the origin-bound loopback relay window; it is never sent to the production page or placed in browser storage, a URL, terminal log, repository, database, or monitoring event.
+- The production page sends exact-origin `postMessage` requests to the open relay. Only the relay performs same-origin loopback fetches, and sign-out closes it.
 - Codex runs ephemerally in an empty temporary directory, ignores user configuration and MCP servers, uses a read-only sandbox with approvals disabled, and must return strict JSON Schema output.
 - The worker processes one operation at a time, caps input/output, suppresses successful CLI diagnostics, and returns only safe error codes.
 - This is an owner-operated demo boundary, not a multi-user production inference service.
