@@ -6,9 +6,9 @@
 - Codex model identifier: not exposed to the repository or terminal; intentionally not guessed
 - Application live-model target: `gpt-5.6` (disabled throughout this milestone)
 - Implementation branch: `agent/codex-mcp-integration`
-- Commit: pending
-- Pull request: pending
-- CI: pending
+- Implementation commit: `eca08fe`
+- Pull request: [Draft PR #33](https://github.com/Z2ZATL/lumixia-brief/pull/33)
+- CI: [run 29642833694](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29642833694) — in progress
 
 ## Sanitized owner instruction
 
