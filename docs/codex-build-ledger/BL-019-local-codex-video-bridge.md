@@ -5,7 +5,7 @@
 - Model observed in the real local smoke: `gpt-5.6-sol`
 - Core commit: `367e6c4039c1c829045e1f8ed21a78106bb213fb`
 - PR: [#35](https://github.com/Z2ZATL/lumixia-brief/pull/35)
-- CI: [Required CI run 29650728441](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29650728441)
+- CI: [PR #35 checks](https://github.com/Z2ZATL/lumixia-brief/pull/35/checks)
 
 ## Sanitized owner instruction
 
