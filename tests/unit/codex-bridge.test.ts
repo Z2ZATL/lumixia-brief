@@ -51,6 +51,25 @@ describe('owner-operated Codex bridge', () => {
     expect(response.headers['cache-control']).toBe('no-store');
   });
 
+  it('serves an origin-bound same-origin relay without exposing the token to its opener', async () => {
+    const { app } = bridgeApp();
+    const pair = await request(app).get('/pair').query({ origin }).expect(200);
+    expect(pair.headers['content-security-policy']).toContain("connect-src 'self'");
+    expect(pair.text).toContain('lumixia:codex-bridge:ready');
+    expect(pair.text).toContain('lumixia:codex-bridge:request');
+    expect(pair.text).toContain('Keep this window open');
+    expect(pair.text).not.toContain('window.close()');
+    expect(pair.text).not.toContain('"token":');
+
+    const selfOrigin = 'http://127.0.0.1:8790';
+    const health = await request(app)
+      .get('/health')
+      .set({ host: '127.0.0.1:8790', origin: selfOrigin, authorization: `Bearer ${token}` })
+      .expect(200);
+    expect(health.headers['access-control-allow-origin']).toBeUndefined();
+    expect(health.body).toEqual({ ready: true, model: 'gpt-5.6-sol' });
+  });
+
   it('validates interview input and returns only structured analysis', async () => {
     const { app, runner } = bridgeApp();
     const project = makeProject();

@@ -84,7 +84,11 @@ function responseHeaders(_req: Request, res: Response, next: NextFunction): void
 function cors(allowedOrigins: ReadonlySet<string>) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const origin = req.get('origin');
-    if (!origin || !allowedOrigins.has(origin)) {
+    if (!origin || isLoopbackSelfOrigin(req, origin)) {
+      next();
+      return;
+    }
+    if (!allowedOrigins.has(origin)) {
       res.status(403).json({ error: { code: 'BRIDGE_ORIGIN_DENIED' } });
       return;
     }
@@ -100,6 +104,11 @@ function cors(allowedOrigins: ReadonlySet<string>) {
   };
 }
 
+function isLoopbackSelfOrigin(req: Request, origin: string): boolean {
+  const host = req.get('host') ?? '';
+  return /^127\.0\.0\.1:\d+$/.test(host) && origin === `http://${host}`;
+}
+
 function pairingPage(allowedOrigins: ReadonlySet<string>, token: string, model: string) {
   return (req: Request, res: Response): void => {
     const origin = typeof req.query['origin'] === 'string' ? req.query['origin'] : '';
@@ -108,14 +117,19 @@ function pairingPage(allowedOrigins: ReadonlySet<string>, token: string, model: 
       return;
     }
     const nonce = randomBytes(18).toString('base64');
-    res.set('Content-Security-Policy', `default-src 'none'; script-src 'nonce-${nonce}'`);
+    res.set(
+      'Content-Security-Policy',
+      `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'`,
+    );
     res.type('html').send(pairingHtml(origin, token, model, nonce));
   };
 }
 
 function pairingHtml(origin: string, token: string, model: string, nonce: string): string {
-  const message = JSON.stringify({ type: 'lumixia:codex-bridge', token, model });
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Lumixia Codex Bridge</title></head><body><p>Connecting Lumixia Brief to the local Codex demo bridgeâ€¦</p><script nonce="${nonce}">if(window.opener){window.opener.postMessage(${message},${JSON.stringify(origin)});window.close();}</script></body></html>`;
+  const readyMessage = JSON.stringify({ type: 'lumixia:codex-bridge:ready', model });
+  const openerOrigin = JSON.stringify(origin);
+  const bearerToken = JSON.stringify(token);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Lumixia Codex Bridge</title></head><body><p>Local Codex is connected. Keep this window open during the Lumixia demo.</p><script nonce="${nonce}">const openerOrigin=${openerOrigin};const token=${bearerToken};const active=new Map();const reply=(value)=>{if(window.opener){window.opener.postMessage(value,openerOrigin);}};const errorCode=(body)=>body&&typeof body==='object'&&body.error&&typeof body.error.code==='string'?body.error.code:'BRIDGE_OPERATION_FAILED';reply(${readyMessage});window.addEventListener('message',async(event)=>{if(event.origin!==openerOrigin||event.source!==window.opener||!event.data||typeof event.data!=='object'){return;}const message=event.data;if(message.type==='lumixia:codex-bridge:cancel'&&typeof message.id==='string'){active.get(message.id)?.abort();return;}if(message.type!=='lumixia:codex-bridge:request'||typeof message.id!=='string'){return;}const route=message.action==='health'?'/health':message.action==='interview'?'/v1/interview':message.action==='brief'?'/v1/brief':null;if(!route){reply({type:'lumixia:codex-bridge:response',id:message.id,ok:false,code:'BRIDGE_INVALID_REQUEST'});return;}const controller=new AbortController();active.set(message.id,controller);try{const hasBody=message.action!=='health';const response=await fetch(route,{method:hasBody?'POST':'GET',cache:'no-store',credentials:'omit',headers:{Authorization:'Bearer '+token,...(hasBody?{'Content-Type':'application/json'}:{})},...(hasBody?{body:JSON.stringify(message.payload??{})}:{}),signal:controller.signal});const body=await response.json().catch(()=>null);if(response.ok){reply({type:'lumixia:codex-bridge:response',id:message.id,ok:true,body});}else{reply({type:'lumixia:codex-bridge:response',id:message.id,ok:false,code:errorCode(body)});}}catch(error){reply({type:'lumixia:codex-bridge:response',id:message.id,ok:false,code:error&&error.name==='AbortError'?'BRIDGE_CANCELLED':'BRIDGE_UNAVAILABLE'});}finally{active.delete(message.id);}});</script></body></html>`;
 }
 
 function requireToken(expected: string) {

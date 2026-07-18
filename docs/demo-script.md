@@ -10,7 +10,7 @@ Show the landing page and the private-workspace claim.
 
 Create **Founder preparing a brief for Codex** with one deliberately incomplete sentence. Explain that all project routes require Google plus TOTP and that no project content enters logs.
 
-Before recording, keep `npm run codex:bridge` running and pair it from **Connections**. Do not show the setup step unless needed; the green `gpt-5.6-sol` local-Codex indicator is sufficient evidence during the interview.
+Before recording, keep `npm run codex:bridge` running, pair it from **Connections**, and leave the small local relay window open. Do not show the setup step unless needed; the green `gpt-5.6-sol` local-Codex indicator is sufficient evidence during the interview.
 
 ## 0:45–1:25 — Adaptive interview
 
