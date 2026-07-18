@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../../server/config.js';
 import { HttpError } from '../../server/http.js';
@@ -102,6 +103,8 @@ describe('security primitives', () => {
       clientId: 'codex-client_opaque.1',
     });
     expect(mocks.rpc).toHaveBeenCalledWith('verify_codex_oauth_grant');
+    const clientOptions = vi.mocked(createClient).mock.lastCall?.[2];
+    expect(clientOptions?.global?.headers).toEqual({ Authorization: 'Bearer oauth-token' });
 
     mocks.rpc.mockResolvedValueOnce({ data: false, error: null });
     await expectHttpError(
