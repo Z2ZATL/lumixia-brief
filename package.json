@@ -63,7 +63,7 @@
     "express": "5.2.1",
     "helmet": "^8.1.0",
     "openai": "6.46.0",
-    "rate-limiter-flexible": "^8.0.1",
+    "rate-limiter-flexible": "^11.2.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-router-dom": "^7.13.0",
