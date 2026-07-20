@@ -6,7 +6,8 @@
 **Primary demo:** A founder preparing a brief for Codex<br>
 **Core Codex Session ID:** `019f614d-cd80-76d3-8151-b8271f575a3f`<br>
 **Source:** <https://github.com/Z2ZATL/lumixia-brief><br>
-**Demo URL:** <https://brief.z2zs.space>
+**Demo URL:** <https://brief.z2zs.space><br>
+**Contributors:** [Z2ZATL and OpenAI Codex](CONTRIBUTORS.md)
 
 Lumixia Brief is a React web app that turns an unclear project idea into a reviewable, versioned one-page brief. Codex local demo mode or the live GPT-5.6 provider asks one adaptive question per submitted answer, identifies facts, assumptions, and contradictions, and assesses eight clarity dimensions. The server calculates the score and decides when the brief is ready. A human must review and approve an immutable snapshot before Notion receives anything.
 
@@ -251,6 +252,7 @@ Use Vercel Observability for invocation/latency, Sentry for scrubbed React/Expre
 
 ## Build evidence and Codex usage
 
+- [CONTRIBUTORS.md](CONTRIBUTORS.md) — human creator and AI development contributor attribution.
 - [CODEX_BUILD_LOG.md](CODEX_BUILD_LOG.md) — milestone index.
 - [docs/codex-build-ledger/](docs/codex-build-ledger/) — detailed sanitized evidence.
 - [docs/decisions/](docs/decisions/) — architecture decision records.

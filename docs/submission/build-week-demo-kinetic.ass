@@ -1,0 +1,71 @@
+[Script Info]
+Title: Lumixia Brief Build Week kinetic captions
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Kinetic,Segoe UI Semibold,54,&H00FFFFFF,&H00FFFFFF,&H00343E17,&H70000000,-1,0,0,0,100,100,0.6,0,1,5,1,2,70,70,82,1
+Style: Punch,Segoe UI Semibold,68,&H00556BE6,&H00FFFFFF,&H00343E17,&H70000000,-1,0,0,0,100,100,1.0,0,1,6,1,2,70,70,82,1
+Style: Label,Segoe UI Semibold,27,&H00FFFFFF,&H00FFFFFF,&H00343E17,&H00343E17,-1,0,0,0,100,100,1.4,0,3,11,0,7,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.05,0:00:07.84,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}VAGUE PROMPT  →  CLEAR BRIEF
+Dialogue: 0,0:00:07.84,0:00:22.07,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}BUILT WITH CODEX + GPT-5.6
+Dialogue: 0,0:00:22.07,0:00:39.22,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}ADAPTIVE INTERVIEW
+Dialogue: 0,0:00:39.22,0:00:57.33,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}8D CONFIDENCE
+Dialogue: 0,0:00:57.33,0:01:17.27,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}+59 ALIGNMENT
+Dialogue: 0,0:01:17.27,0:01:27.50,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}HUMAN APPROVAL
+Dialogue: 0,0:01:27.50,0:01:37.01,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}IDEMPOTENT NOTION SYNC
+Dialogue: 0,0:01:37.01,0:01:54.13,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}CODEX BUILD EVIDENCE
+Dialogue: 0,0:01:54.13,0:02:06.89,Label,,0,0,0,,{\an7\pos(78,72)\fad(180,180)}GPT-5.6 SOL  ·  NO API KEY
+
+Dialogue: 1,0:00:00.05,0:00:01.75,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}AI STARTS TOO FAST.
+Dialogue: 1,0:00:01.75,0:00:03.51,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}WITH AN {\c&H00556BE6&}INCOMPLETE PROMPT.{\c&H00FFFFFF&}
+Dialogue: 1,0:00:03.51,0:00:05.60,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}LUMIXIA ADDS
+Dialogue: 1,0:00:05.60,0:00:07.84,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}AN ALIGNMENT STEP.
+Dialogue: 1,0:00:07.84,0:00:10.80,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}BUILT DURING OPENAI BUILD WEEK
+Dialogue: 1,0:00:10.80,0:00:13.80,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}WITH {\c&H00CADCB9&}CODEX{\c&H00556BE6&} + GPT-5.6
+Dialogue: 1,0:00:13.80,0:00:16.54,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}ONE {\c&H00556BE6&}VAGUE SENTENCE.{\c&H00FFFFFF&}
+Dialogue: 1,0:00:16.54,0:00:19.30,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}GOOGLE SIGN-IN
+Dialogue: 1,0:00:19.30,0:00:22.07,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}PLUS {\c&H00556BE6&}REQUIRED MFA{\c&H00FFFFFF&}
+Dialogue: 1,0:00:22.07,0:00:25.24,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}ONE FOCUSED QUESTION AT A TIME.
+Dialogue: 1,0:00:25.24,0:00:27.60,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}NOTHING RUNS WHILE YOU TYPE.
+Dialogue: 1,0:00:27.60,0:00:30.60,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}ON SUBMIT: GPT-5.6 SOL
+Dialogue: 1,0:00:30.60,0:00:33.20,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}RUNS THROUGH {\c&H00CADCB9&}CODEX{\c&H00FFFFFF&}
+Dialogue: 1,0:00:33.20,0:00:36.50,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}FACTS · ASSUMPTIONS · CONTRADICTIONS
+Dialogue: 1,0:00:36.50,0:00:39.22,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}THEN THE NEXT BEST QUESTION
+Dialogue: 1,0:00:39.22,0:00:42.50,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}THE {\c&H00CADCB9&}SERVER{\c&H00FFFFFF&} SCORES
+Dialogue: 1,0:00:42.50,0:00:43.80,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(50,70)}NOT THE MODEL
+Dialogue: 1,0:00:43.80,0:00:46.40,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}8 DIMENSIONS
+Dialogue: 1,0:00:46.40,0:00:48.93,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}FROM PROBLEM TO SUCCESS
+Dialogue: 1,0:00:48.93,0:00:52.00,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}ONE ANSWER CLARIFIES
+Dialogue: 1,0:00:52.00,0:00:55.00,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}PROBLEM + AUDIENCE
+Dialogue: 1,0:00:55.00,0:00:57.33,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}0%  →  38% CONFIDENCE
+Dialogue: 1,0:00:57.33,0:01:00.50,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}FIVE ADAPTIVE TURNS
+Dialogue: 1,0:01:00.50,0:01:04.09,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}33%  →  92% ALIGNMENT
+Dialogue: 1,0:01:04.09,0:01:07.80,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}GOALS · DELIVERABLES · NON-GOALS
+Dialogue: 1,0:01:07.80,0:01:11.40,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}CONSTRAINTS · RISKS · ASSUMPTIONS
+Dialogue: 1,0:01:11.40,0:01:14.25,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}OPEN QUESTIONS · NEXT STEPS
+Dialogue: 1,0:01:14.25,0:01:17.27,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}EVERY CLAIM HAS EVIDENCE
+Dialogue: 1,0:01:17.27,0:01:20.50,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}REVISE ANY SECTION
+Dialogue: 1,0:01:20.50,0:01:22.99,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}ONLY {\c&H00556BE6&}APPROVED SNAPSHOTS{\c&H00FFFFFF&} LEAVE
+Dialogue: 1,0:01:22.99,0:01:25.20,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}EDITING CREATES
+Dialogue: 1,0:01:25.20,0:01:27.50,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}A NEW REVISION
+Dialogue: 1,0:01:27.50,0:01:30.11,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}NOTION GETS {\c&H00556BE6&}APPROVED ONLY{\c&H00FFFFFF&}
+Dialogue: 1,0:01:30.11,0:01:33.50,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}SAFE TO RETRY
+Dialogue: 1,0:01:33.50,0:01:37.01,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}SAME PAGE. NO DUPLICATES.
+Dialogue: 1,0:01:37.01,0:01:40.80,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}CODEX SCAFFOLDED
+Dialogue: 1,0:01:40.80,0:01:44.56,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}BUILT · TESTED · HARDENED
+Dialogue: 1,0:01:44.56,0:01:47.60,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}MILESTONES · PRS · CI
+Dialogue: 1,0:01:47.60,0:01:50.70,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}CODEX SESSION EVIDENCE
+Dialogue: 1,0:01:50.70,0:01:54.13,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}NO PROMPTS. NO PERSONAL DATA.
+Dialogue: 1,0:01:54.13,0:01:57.80,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,90)}GPT-5.6 SOL
+Dialogue: 1,0:01:57.80,0:02:00.77,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}THROUGH MY {\c&H00CADCB9&}CODEX PLAN{\c&H00FFFFFF&}
+Dialogue: 1,0:02:00.77,0:02:03.80,Kinetic,,0,0,0,,{\an2\pos(960,936)\fscx89\fscy89\t(0,150,\fscx100\fscy100)\fad(60,90)}FROM {\c&H00556BE6&}AMBIGUITY{\c&H00FFFFFF&}
+Dialogue: 1,0:02:03.80,0:02:06.89,Punch,,0,0,0,,{\an2\pos(960,936)\fscx86\fscy86\t(0,150,\fscx100\fscy100)\fad(60,180)}TO A HUMAN-APPROVED HANDOFF
