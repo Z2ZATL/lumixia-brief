@@ -1,7 +1,7 @@
 # BL-022 — Codex contributor attribution
 
 - Date: 2026-07-20
-- Status: repository attribution prepared; pull request and publication evidence pending
+- Status: repository attribution published through PR #38; merge pending required CI
 - Codex Session ID: `019f614d-cd80-76d3-8151-b8271f575a3f`
 - Model identifier recorded by the product/session: `gpt-5.6-sol`
 
@@ -29,4 +29,4 @@ Add Codex as a contributor on GitHub so its implementation work is clearly credi
 - Git whitespace check
 - Repository attribution and evidence-link review
 
-Commit, pull request, CI, and merge evidence will be added after publication.
+Publication evidence: `efbc5b9` / [PR #38](https://github.com/Z2ZATL/lumixia-brief/pull/38) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29754434713).

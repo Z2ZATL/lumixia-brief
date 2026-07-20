@@ -51,4 +51,4 @@ No passwords, TOTP codes, OAuth values, tokens, provider payloads, real prompts,
 - Upload the approved file to YouTube as Public.
 - Add the public video URL and remaining required fields to Devpost, complete the signed-out dry run, and submit.
 
-Commit, PR, and CI evidence will be added when this documentation is published to the repository.
+Repository publication: `efbc5b9` / [PR #38](https://github.com/Z2ZATL/lumixia-brief/pull/38) / [CI](https://github.com/Z2ZATL/lumixia-brief/actions/runs/29754434713).
