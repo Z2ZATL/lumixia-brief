@@ -1,0 +1,117 @@
+1
+00:00:00,050 --> 00:00:03,509
+AI often starts too quickly from an incomplete prompt.
+
+2
+00:00:03,509 --> 00:00:07,836
+Lumixia Brief adds a deliberate alignment step before work begins.
+
+3
+00:00:07,836 --> 00:00:13,798
+I built this product during OpenAI Build Week with Codex using GPT-5.6.
+
+4
+00:00:13,798 --> 00:00:16,538
+A founder starts with one vague sentence.
+
+5
+00:00:16,538 --> 00:00:22,067
+The private workspace is protected by Google sign-in
+and mandatory authenticator verification.
+
+6
+00:00:22,067 --> 00:00:25,240
+Lumixia asks one focused question at a time.
+
+7
+00:00:25,240 --> 00:00:27,596
+Nothing runs while the user types.
+
+8
+00:00:27,596 --> 00:00:31,900
+On submit, GPT-5.6 Sol runs through Codex on my computer.
+
+9
+00:00:31,900 --> 00:00:35,900
+It extracts facts, assumptions, contradictions, and evidence,
+
+10
+00:00:35,900 --> 00:00:39,218
+then chooses the most important next question.
+
+11
+00:00:39,218 --> 00:00:43,500
+The server, not the model, scores eight dimensions:
+
+12
+00:00:43,500 --> 00:00:48,930
+problem, audience, outcome, scope, constraints,
+timeline, risks, and success criteria.
+
+13
+00:00:48,930 --> 00:00:53,100
+Here, one answer makes the problem and audience clear,
+
+14
+00:00:53,100 --> 00:00:57,331
+surfaces an assumption, and raises confidence from zero to thirty-eight percent.
+
+15
+00:00:57,331 --> 00:01:04,086
+After five adaptive turns, alignment improved
+from thirty-three to ninety-two percent.
+
+16
+00:01:04,086 --> 00:01:09,200
+The structured brief separates goals, deliverables, non-goals,
+constraints, risks, assumptions, and open questions.
+
+17
+00:01:09,200 --> 00:01:14,254
+It also captures decisions requiring approval and next steps.
+
+18
+00:01:14,254 --> 00:01:17,271
+Every claim stays tied to interview evidence.
+
+19
+00:01:17,271 --> 00:01:22,992
+The user can revise any section, but only an immutable
+approved snapshot can leave Lumixia.
+
+20
+00:01:22,992 --> 00:01:27,500
+Editing an approved brief creates a new revision
+instead of rewriting history.
+
+21
+00:01:27,500 --> 00:01:30,108
+Notion receives only the approved version.
+
+22
+00:01:30,108 --> 00:01:37,007
+Synchronization is idempotent, so retrying updates the same page
+instead of creating duplicates.
+
+23
+00:01:37,007 --> 00:01:44,555
+Codex scaffolded, implemented, tested, and hardened
+the React, Express, Supabase, and Notion stack.
+
+24
+00:01:44,555 --> 00:01:49,300
+The repository records every milestone, pull request, CI result,
+
+25
+00:01:49,300 --> 00:01:54,134
+and the primary feedback session ID without exposing prompts or personal data.
+
+26
+00:01:54,134 --> 00:02:00,769
+This live demo uses GPT-5.6 Sol through my Codex plan,
+not a paid API key.
+
+27
+00:02:00,769 --> 00:02:06,887
+Lumixia Brief turns ambiguity into a visible,
+human-approved handoff before AI work begins.

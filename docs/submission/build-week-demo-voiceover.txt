@@ -1,0 +1,17 @@
+AI often starts too quickly from an incomplete prompt. Lumixia Brief adds a deliberate alignment step before work begins.
+
+I built this product during OpenAI Build Week with Codex using GPT-5.6. A founder starts with one vague sentence. The private workspace is protected by Google sign-in and mandatory authenticator verification.
+
+Lumixia asks one focused question at a time. Nothing runs while the user types. On submit, GPT-5.6 Sol, running through Codex on my computer, extracts facts, assumptions, contradictions, and evidence, then chooses the most important next question.
+
+The server, not the model, scores eight dimensions: problem, audience, outcome, scope, constraints, timeline, risks, and success criteria. Here, one answer makes the problem and audience clear, surfaces an assumption, and raises confidence from zero to thirty-eight percent.
+
+After five adaptive turns, this production rehearsal improved alignment from thirty-three to ninety-two percent. The structured brief separates goals, deliverables, non-goals, constraints, risks, assumptions, open questions, decisions requiring approval, and next steps. Every claim stays tied to interview evidence.
+
+The user can revise any section, but only an immutable approved snapshot can leave Lumixia. Editing an approved brief creates a new revision instead of rewriting history.
+
+Notion receives only the approved version. Synchronization is idempotent, so retrying updates the same page instead of creating duplicates.
+
+Codex scaffolded, implemented, tested, and hardened the React, Express, Supabase, and Notion stack. The repository records every milestone, pull request, CI result, and the primary feedback session ID without exposing prompts or personal data.
+
+This live demo uses GPT-5.6 Sol through my Codex plan, not a paid API key. Lumixia Brief turns ambiguity into a visible, human-approved handoff before AI work begins.
